@@ -12,6 +12,8 @@ This is a Telegram bot that responds to commands. At the moment it has some toy 
 - Reddit integration. For the quotes table get reddit content from my favourite subreddits (text and pictures supported) at fixed scheduled. 
 - Maybe this is a different app, but the feature I'm working on now involves web scraping share prices from the JSE and using the bot to quote actionable information, and the task queuing system to do offline analysis of the data.
 
+![alt text](https://raw.githubusercontent.com/plasticruler/tbot/master/chart.png)
+
 ## How do you get it right?
 - I am using the Telegram Bot API for this. My application is hosted on a Raspberry Pi 3, written in Python 3 (python-flask) and the ssl certificate is provided by letsencrypt. I am using the duckdns dynamic IP resolution service. I am using MariaDB/Mysql as the backend database.
 - In the flask-api I am using flask-restful-api to manage the api interface for the quotes (not really needed but I needed a way to enter data into the database and for that postman is used).
