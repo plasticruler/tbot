@@ -8,10 +8,12 @@ celery==4.3.0
 certifi==2019.3.9
 chardet==3.0.4
 Click==7.0
+cycler==0.10.0
 dlib==19.17.0
 face-recognition==1.2.3
 face-recognition-models==0.3.0
 Flask==1.0.2
+Flask-CLI==0.4.0
 Flask-Cors==3.0.7
 Flask-Migrate==2.4.0
 Flask-RESTful==0.3.7
@@ -24,9 +26,11 @@ httplib2==0.12.3
 idna==2.8
 itsdangerous==1.1.0
 Jinja2==2.10.1
+kiwisolver==1.1.0
 kombu==4.5.0
 Mako==1.0.9
 MarkupSafe==1.1.1
+matplotlib==3.0.3
 meld3==1.0.2
 mp3-tagger==1.0
 mysqlclient==1.4.2.post1
@@ -38,6 +42,7 @@ praw==6.1.1
 prawcore==1.0.1
 pyasn1==0.4.5
 pyasn1-modules==0.2.5
+pyparsing==2.4.0
 pyTelegramBotAPI==3.6.6
 python-dateutil==2.8.0
 python-dotenv==0.10.1

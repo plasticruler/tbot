@@ -12,8 +12,8 @@ from telebot import types
 import re
 
 from app import bot, log
-from app.models import Bot_Quote, SelfLog
-from app.tasks import download_youtube, learn_face, recognise_face, save_inbound_message, send_email, send_random_quote
+from app.models import Bot_Quote, SelfLog, EquityInstrument
+from app.tasks import download_youtube, learn_face, recognise_face, save_inbound_message, send_email, send_random_quote, send_chart
 
 REDIS_SERVER = os.getenv('REDIS_SERVER')
 REDIS_PASSWORD = os.getenv('REDIS_PASSWORD')
@@ -32,12 +32,18 @@ authorised_usernames = os.getenv('AUTHORIZED_USERNAMES').split(',')
 
 
 # BOT RELATED
-@bot.message_handler(commands=['help', 'start', 'convert', 'quote', '8ball', 'register','slog'])
+@bot.message_handler(commands=['help', 'start', 'convert', 'quote', '8ball', 'register','slog','chart'])
 def send_welcome(message):
     save_inbound_message.delay(str(message))
     chat_id = message.chat.id
     if "/quote" in message.text:
-        send_random_quote.delay(chat_id)
+        send_random_quote(chat_id)
+    elif "/chart" in message.text:
+        codes = message.text.split()
+        code = 'STXNDQ'
+        if len(codes) >= 2:
+            code = codes[1]
+        send_chart(code, chat_id)
     elif "/register" in message.text:
         msg = bot.reply_to(
             message, "This is the registration step. What is your surname?")

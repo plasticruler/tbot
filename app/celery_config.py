@@ -38,10 +38,10 @@ class CeleryConfig(object):
         },
         'download-share-data': {
             'task': 'app.tasks.download_share_prices',
-            'schedule': crontab(minute="*/18", hour="9-18", day_of_week="mon,tue,wed,thu,fri")
+            'schedule': crontab(minute="*/15", hour="7-16", day_of_week="mon,tue,wed,thu,fri")
         },
         'process-share-data': {
             'task': 'app.tasks.process_shareprice_data',
-            'schedule': crontab(minute="1,19,33,47", hour="9-18", day_of_week="mon,tue,wed,thu,fri")
+            'schedule': crontab(minute="1,19,33,47", hour="7-16", day_of_week="mon,tue,wed,thu,fri")
         }
     }

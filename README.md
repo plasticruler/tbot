@@ -25,7 +25,7 @@ This is a Telegram bot that responds to commands. At the moment it has some toy 
 - I have integrated the celery tasks with the flask instance but the worker process itself has to run in a seperate process.
 - On the public facing server (required for when Telegram sends your bot updates), I run apache2 with mod_wsgi.
 - I take care of logging using the python logging library.
-- You get a chat messge when then long running tasks are completed. And a link to the hosted file. Unfortunately you won't be able to convert videos through the public deployment as that requires authorisation from me. But you can change the code yourself when you deploy it.
+- You get a chat message when then long running tasks are completed. And a link to the hosted file. Unfortunately you won't be able to convert videos through the public deployment as that requires authorisation from me. But you can change the code yourself when you deploy it.
 
 ## How do you get it right x3?
 - I have a task processing framework that already supports useful features. Main features are download web page, scrape data, query database, send notification and prompt and react accordingly.

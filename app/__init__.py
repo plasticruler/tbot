@@ -13,6 +13,8 @@ from bs4 import BeautifulSoup
 import logging
 import os
 import sys
+import datetime
+import matplotlib.pyplot as plt
 
 
 from app.config import Config
@@ -65,9 +67,8 @@ def make_celery(app):
 from app.resources import TagResource, QuoteResource, EquityInstrumentResource, TrackedInstrumentResource
 from app import bothandlers, routes, tasks, models
 
-from app.models import EquityInstrument, Key, KeyValueEntry
+from app.models import EquityInstrument, Key, KeyValueEntry, EquityPrice
 from app.tasks import download_file, download_share_prices, update_multiple_reddit_subs_using_payload, process_shareprice_data
-
 # register api resources
 api.add_resource(TagResource, '/api/1.0/tag')
 api.add_resource(QuoteResource, '/api/1.0/quote')
@@ -78,6 +79,19 @@ api.add_resource(TrackedInstrumentResource, '/api/1.0/trackedinstrument/')
 
 # cli click commands
 
+@app.cli.command()
+def generatechart():
+    share_code = 'STXNDQ'
+    today = datetime.datetime.today().date()
+    instrument = EquityInstrument.find_by_code(share_code)
+    prices = EquityPrice.get_last_sales_prices_by_date(share_code, today)
+    earliest_time_for_records = min([x[0] for x in prices])
+    plt.plot([x[1] for x in prices], linewidth=4)
+    plt.title("{} - {}".format(instrument.company_name, instrument.jse_code))
+    plt.ylabel('Price (c)')
+    plt.xlabel('Time')
+    plt.xticks(range(len(prices)), [x[0].strftime('%H:%M') for x in prices], rotation='vertical')
+    plt.savefig("{}/chart.png".format(os.getenv('DOWNLOAD_FOLDER')))
 
 @app.cli.command()
 @click.argument('url')

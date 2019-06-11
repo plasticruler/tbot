@@ -181,7 +181,9 @@ class EquityPrice(BaseModel):
     equitypricesource = db.relationship('EquityPriceSource', backref='equity_price', lazy=True)
     equityinstrument = db.relationship('EquityInstrument', backref='equity_price', lazy=True)
     
-
+    @classmethod
+    def get_last_sales_prices_by_date(cls, share_code, dt):
+        return [(x.downloaded_timestamp, x.last_sales_price) for x in EquityPrice.query.filter(EquityPrice.downloaded_timestamp >= dt).filter(EquityPrice.equityinstrument_id == EquityInstrument.find_by_code(share_code).id)]
     def __repr__(self):
         return '<EquityPrice {} - {}>'.format(self.equityinstrument.jse_code, self.last_sales_price)
 

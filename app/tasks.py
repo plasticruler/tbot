@@ -22,8 +22,11 @@ from app.rbot import reddit
 import uuid
 import time
 import datetime
+import re
 from mp3_tagger import MP3File, VERSION_1, VERSION_2, VERSION_BOTH
-from app.utils import get_prices_from_sn
+from app.utils import get_prices_from_sn_source
+import matplotlib.pyplot as plt
+
 
 
 TASK_NOTIFICATION_EMAIL = os.getenv('NOTIFICATIONS_RECIPIENT_EMAIL')
@@ -313,6 +316,28 @@ def post_to_url(url, **kwargs):
         send_email.delay(TASK_NOTIFICATION_EMAIL,
                          'Post to url failed. {}'.format(url), e)
 ###########################################
+def download_exchange_rate_data():
+    client = Client(app_id=os.getenv('OEXCHANGE_RATES_API_KEY'))
+    client.get_latest_for_currency('USD')
+
+###########################################
+@celery.task
+def send_chart(share_code, chat_id):
+    today = datetime.datetime.today().date()
+    #maybe cache the file and not regen at every request
+    instrument = EquityInstrument.find_by_code(share_code)
+    prices = EquityPrice.get_last_sales_prices_by_date(share_code, today)
+    earliest_time_for_records = min([x[0] for x in prices])
+    plt.plot([x[1] for x in prices], linewidth=4)
+    plt.title("{} - {}".format(instrument.company_name, instrument.jse_code))
+    plt.ylabel('Price (c)')
+    plt.xlabel('Time')
+    plt.xticks(range(len(prices)), [x[0].strftime('%H:%M') for x in prices], rotation='vertical')
+    fn = "{}/{}.png".format(os.getenv('DOWNLOAD_FOLDER'), share_code)
+    log.info('Saving photo to {}'.format(fn))
+    plt.savefig(fn)
+    photo = open(fn, 'rb')
+    bot.send_photo(chat_id, photo, caption="{} ({})".format(instrument.company_name, share_code))
 
 @celery.task
 def download_share_prices():
@@ -334,7 +359,7 @@ def process_shareprice_data():
         code = f.split('-')[1]        
         equity_instrument = EquityInstrument.find_by_code(code)        
         dt = datetime.datetime.fromtimestamp(int(f.split('.')[0].split('/')[-1]))
-        price_data = get_prices_from_sn(f)
+        price_data = get_prices_from_sn_source(f)
         equity_price = EquityPrice()
         equity_price.buy_offer_price = price_data['buy_offer_price']
         equity_price.downloaded_timestamp = dt
