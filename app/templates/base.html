@@ -1,6 +1,64 @@
+<!DOCTYPE html>
 <html>
-    <head>tbot</head>
-    <body>
-        {%block content%} {%block content%}
-    </body>
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>tbot Administration</title>
+    <!--Import Google Icon Font-->
+      <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <!-- Compiled and minified CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+</head>
+
+<body>
+<nav class="light-blue lighten-1" role="navigation">
+    <div class="nav-wrapper container"><a id="logo-container" href="#" class="brand-logo">tbot Administration</a>
+      <ul class="right hide-on-med-and-down">
+        
+                        <li><a href="{{ url_for('main.index') }}" class="navbar-item">
+                                Home
+                        </a></li>
+                            
+                            {%if current_user.is_authenticated%}
+                            <li><a href="{{ url_for('main.profile') }}" class="navbar-item">
+                                Profile
+                            </a></li>
+                            <li><a href="{{ url_for('main.instruments') }}" class="navbar-item">
+                                Instrument Management
+                            </a></li>
+                            <li><a href="{{ url_for('main.subreddits') }}" class="navbar-item">
+                                SubReddits
+                            </a></li>
+                            <li><a href="{{ url_for('auth.logout') }}" class="navbar-item">
+                                Logout
+                            </a></li>
+
+                            {%endif%}
+                            {%if not current_user.is_authenticated%}
+                            <li><a href="{{ url_for('auth.login') }}" class="navbar-item">
+                                Login
+                            </a></li>                            
+                            
+                            <li><a href="{{ url_for('auth.signup') }}" class="navbar-item">
+                                Sign Up
+                            </a></li>
+                            {%endif%}
+      </ul>
+      <ul id="nav-mobile" class="sidenav">
+        <li><a href="#">Mobile links here</a></li>
+      </ul>
+      <a href="#" data-target="nav-mobile" class="sidenav-trigger"><i class="material-icons">menu</i></a>
+    </div>
+  </nav>
+ <div class="container">
+    <div class="section">
+                {% block content %}
+               {% endblock %}          
+    </div>
+ </container>
+    <!-- Compiled and minified JavaScript -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+</body>
 </html>

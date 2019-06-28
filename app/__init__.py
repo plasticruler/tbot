@@ -7,6 +7,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_restful import Api
 from flask_migrate import Migrate
 from flask.cli import with_appcontext
+from flask_login import LoginManager, user_logged_in
 
 from celery import Celery
 from bs4 import BeautifulSoup
@@ -38,14 +39,21 @@ db = SQLAlchemy(app)
 
 migrate = Migrate(app, db)
 
+from .auth_routes import auth as auth_blueprint
+app.register_blueprint(auth_blueprint)
+
+from .main_routes import main as main_blueprint
+app.register_blueprint(main_blueprint)
+
+login_manager = LoginManager()
+login_manager.login_view = 'auth.login'
+login_manager.init_app(app)
+
 BOT_API_KEY = app.config['BOT_API_KEY']
 BOT_HOST = app.config['BOT_HOST']
 BOT_SECRET = app.config['BOT_SECRET']
 
 bot = telebot.TeleBot(BOT_API_KEY, threaded=False, skip_pending=True)
-
-# bot.remove_webhook()
-# bot.set_webhook(url=BOT_HOST)
 
 # celery
 
@@ -65,10 +73,17 @@ def make_celery(app):
     return celery 
 
 from app.resources import TagResource, QuoteResource, EquityInstrumentResource, TrackedInstrumentResource
-from app import bothandlers, routes, tasks, models
+from app import bothandlers, tasks, models
 
-from app.models import EquityInstrument, Key, KeyValueEntry, EquityPrice
+from app.models import EquityInstrument, Key, KeyValueEntry, EquityPrice, User
 from app.tasks import download_file, download_share_prices, update_multiple_reddit_subs_using_payload, process_shareprice_data
+
+
+#set loginmanager
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
 # register api resources
 api.add_resource(TagResource, '/api/1.0/tag')
 api.add_resource(QuoteResource, '/api/1.0/quote')
@@ -79,19 +94,6 @@ api.add_resource(TrackedInstrumentResource, '/api/1.0/trackedinstrument/')
 
 # cli click commands
 
-@app.cli.command()
-def generatechart():
-    share_code = 'STXNDQ'
-    today = datetime.datetime.today().date()
-    instrument = EquityInstrument.find_by_code(share_code)
-    prices = EquityPrice.get_last_sales_prices_by_date(share_code, today)
-    earliest_time_for_records = min([x[0] for x in prices])
-    plt.plot([x[1] for x in prices], linewidth=4)
-    plt.title("{} - {}".format(instrument.company_name, instrument.jse_code))
-    plt.ylabel('Price (c)')
-    plt.xlabel('Time')
-    plt.xticks(range(len(prices)), [x[0].strftime('%H:%M') for x in prices], rotation='vertical')
-    plt.savefig("{}/chart.png".format(os.getenv('DOWNLOAD_FOLDER')))
 
 @app.cli.command()
 @click.argument('url')
@@ -111,13 +113,6 @@ def downloadsharedatausingtask():
 @with_appcontext
 def processsharepricedata():
     process_shareprice_data()
-
-
-@app.cli.command()
-@with_appcontext
-def updateredditspayload():
-    update_multiple_reddit_subs_using_payload(",".join([x.value for x in KeyValueEntry.get_by_key('sr_media')]))
-
 
 @app.cli.command()
 @click.argument('file_name')
@@ -161,23 +156,29 @@ def importkeyvaluepairs(file_name):
             kv.save_to_db()
     log.info('Processing done.')
 
-@app.cli.command()
-@click.argument('url') 
-def sendvideo(url):
-    bot.send_video(os.getenv('ADMIN_CHAT_ID'), url)
+#@app.cli.command()
+#@click.argument('url') 
+#def sendvideo(url):
+#    bot.send_video(os.getenv('ADMIN_CHAT_ID'), url)
 
 @app.cli.command()
-@click.argument('sr')
-def importredditmediatarget(sr):
-    tasks.update_reddit_subs_using_payload.delay(sr,limit=500)
+@click.argument('subredditname')
+def importredditmediatargeted(subredditname):
+    tasks.update_reddit_subs_using_payload.delay(subredditname,limit=1000)
+
+@app.cli.command()
+@click.argument('subredditname')
+def importreddittitletargeted(subredditname):
+    tasks.update_multiple_reddit_subs_using_title.delay(subredditname,limit=1000)
+
 
 @app.cli.command()
 @with_appcontext
-def importreddittargets():
+def importredditcontent():
     reddits = KeyValueEntry.get_by_key('sr_media')
     for red in reddits:
-        tasks.update_reddit_subs_using_payload.delay(red.value,limit=500)
-        print('Set task for {}'.format(red.value))
+        tasks.update_reddit_subs_using_payload.delay(red.value,limit=1000)
+        log.info('Set task for {}'.format(red.value))
     reddits = KeyValueEntry.get_by_key('sr_title')
     for red in reddits:
         tasks.update_reddit_subs_from_title.delay(red.value,limit=500)

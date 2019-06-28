@@ -1,5 +1,6 @@
 # coding: utf-8
 from flask_sqlalchemy import SQLAlchemy
+from flask_login import UserMixin
 
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.declarative import declared_attr
@@ -27,12 +28,13 @@ class BaseModel(db.Model):
     is_active = db.Column(db.Boolean, default=True, nullable=False)
 
     def save_to_db(self):
-        try:            
+        try:
             db.session.add(self)
             db.session.commit()
         except SQLAlchemyError as e:
             log.error(str(e))
             db.session.rollback()
+
 
 class Tag(BaseModel):
     __tablename__ = 'tag'
@@ -59,6 +61,7 @@ class Bot_Quote(BaseModel):
     _tags = db.relationship('Tag', secondary=tags, backref='bot_quote')
     tag_list = association_proxy('_tags', 'name')
     text = db.Column(db.String(500))
+    content_hash = db.Column(db.String(128)) #the hash of the content item
 
     @property
     def tags(self):
@@ -70,23 +73,16 @@ class Bot_Quote(BaseModel):
         self._tags = [self.find_or_create_tag(t) for t in tag_list]
 
     @classmethod
-    def return_random(cls):
-        def to_json(x):
-            return {'quote': x.text, 'id': x.id}
+    def return_random(cls):        
         rowCount = int(cls.query.count())
-        return {'quotes': to_json(cls.query.filter(Bot_Quote.is_active == True).offset(int(rowCount*random.random())).first())}
+        return cls.query.filter(Bot_Quote.is_active == True).offset(int(rowCount*random.random())).first()
 
     def find_or_create_tag(self, name):
         t = Tag.query.filter(Tag.name == name).first()
         if t is None:
             t = Tag(name=name)
         return t
-
-    @classmethod
-    def return_all(cls):
-        def to_json(x):
-            return {'quote': x.text, 'id': x.id}
-        return {'quotes': list(map(lambda x: to_json(x), Bot_Quote.query.all()))}
+    
 
     def __repr__(self):
         return '<Bot_Quote {}>'.format(self.text)
@@ -139,7 +135,8 @@ class EquityInstrument(BaseModel):
     jse_code = db.Column(db.String(8), unique=True)
     company_name = db.Column(db.String(100))
     is_active = db.Column(db.Boolean, default=True)
-    prices = db.relationship('EquityPrice', backref='equity_instrument', lazy=True)
+    prices = db.relationship(
+        'EquityPrice', backref='equity_instrument', lazy=True)
 
     @classmethod
     def to_json(cls, x):
@@ -161,6 +158,26 @@ class EquityInstrument(BaseModel):
         return '<EquityInstrument {} - {}>'.format(self.jse_code, self.company_name)
 
 
+class EquityPriceDTO:
+    def __init__(self, equityprice):
+        self.last_sales_price = equityPrice.last_sales_price
+        last_sales_price = equityprice.last_sales_price
+        buy_offer_price = equityprice.buy_offer_price
+        sell_offer_price = equityprice.sell_offer_price
+        last_sales_price = equityprice.last_sales_price
+        price_move = equityprice.price_move
+        volume_count = equityprice.volume_count
+        deal_count = equityprice.deal_count
+        deals_value = equityprice.deals_value
+        today_high = equityprice.today_high
+        today_low = equityprice.today_low
+        from_52_week_high = equityprice.from_52_week_high
+        from_52_week_low = equityprice.from_52_week_low
+        downloaded_timestamp = equityprice.downloaded_time_stamp
+        equitypricesource_id = equityprice.equitypricesource_id
+        equityinstrument_id = equityprice.equityinstrument_id
+
+
 class EquityPrice(BaseModel):
     __tablename__ = 'equity_price'
     last_sales_price = db.Column(db.Integer, nullable=False)
@@ -176,14 +193,20 @@ class EquityPrice(BaseModel):
     from_52_week_high = db.Column(db.Integer, nullable=False)
     from_52_week_low = db.Column(db.Integer, nullable=False)
     downloaded_timestamp = db.Column(db.DateTime, nullable=False)
-    equitypricesource_id = db.Column(db.Integer, db.ForeignKey('equity_price_source.id'), nullable=False)
-    equityinstrument_id = db.Column(db.Integer, db.ForeignKey('equity_instrument.id'), nullable=False)
-    equitypricesource = db.relationship('EquityPriceSource', backref='equity_price', lazy=True)
-    equityinstrument = db.relationship('EquityInstrument', backref='equity_price', lazy=True)
-    
+    equitypricesource_id = db.Column(db.Integer, db.ForeignKey(
+        'equity_price_source.id'), nullable=False)
+    equityinstrument_id = db.Column(db.Integer, db.ForeignKey(
+        'equity_instrument.id'), nullable=False)
+    equitypricesource = db.relationship(
+        'EquityPriceSource', backref='equity_price', lazy=True)
+    equityinstrument = db.relationship(
+        'EquityInstrument', backref='equity_price', lazy=True)
+    interval = db.Column(db.Integer, default=1)
+
     @classmethod
     def get_last_sales_prices_by_date(cls, share_code, dt):
-        return [(x.downloaded_timestamp, x.last_sales_price) for x in EquityPrice.query.filter(EquityPrice.downloaded_timestamp >= dt).filter(EquityPrice.equityinstrument_id == EquityInstrument.find_by_code(share_code).id)]
+        return [EquityPriceDTO(x) for x in EquityPrice.query.filter(EquityPrice.downloaded_timestamp >= dt and EquityPrice.downloaded_timestamp<= (dt + datetime.timedelta(days=1))).filter(EquityPrice.equityinstrument_id == EquityInstrument.find_by_code(share_code).id)]
+
     def __repr__(self):
         return '<EquityPrice {} - {}>'.format(self.equityinstrument.jse_code, self.last_sales_price)
 
@@ -198,7 +221,7 @@ class EquityPriceSource(BaseModel):
     data4 = db.Column(db.String(100))
     data5 = db.Column(db.String(100))
     is_active = db.Column(db.Boolean, default=True)
-    
+
     @classmethod
     def find_by_source_key(cls, source_key):
         return EquityPriceSource.query.filter_by(source_key=source_key).first()
@@ -217,7 +240,6 @@ class Key(BaseModel):
 
     def __repr__(self):
         return '<Key {}>'.format(self.name)
-
 
 class KeyValueEntry(BaseModel):
     __tablename__ = 'keyvalue_entry'
@@ -239,48 +261,33 @@ class KeyValueEntry(BaseModel):
         k = Key.find_by_name(key)
         if k is None:
             return None
-        return KeyValueEntry.query.filter_by(key_id=k.id)
-
-    @classmethod
-    def to_json(cls, x):
-        return {'kv': x.key.name, 'value': x.value, 'is_active': x.is_active}
-
-    @classmethod
-    def return_all(cls):
-        return {'keyvalues': list(map(lambda x: KeyValueEntry.to_json(x), EquityInstrument.query.all()))}
+        return KeyValueEntry.query.filter_by(key_id=k.id)   
 
     def __repr__(self):
         return '<KeyValueEntry {}-{}>'.format(self.key.name, self.value)
 
+class Role(BaseModel):
+    __tablename__ = 'roles'
+    name = db.Column(db.String(30), unique=True)
+class UserRole(BaseModel):
+    __tablename__ = 'user_roles'
+    user_id = db.Column(db.Integer(), db.ForeignKey('users.id', ondelete='CASCADE'))
+    roles_id = db.Column(db.Integer(), db.ForeignKey('roles.id', ondelete='CASCADE'))
 
-class UserModel(BaseModel):
+class User(UserMixin, BaseModel):
     __tablename__ = 'users'
-    username = db.Column(db.String(120), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    email_confirmed_at = db.Column(db.DateTime())
     password = db.Column(db.String(120), nullable=False)
-    user_id = db.Column(db.String(120))
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    roles = db.relationship('Role', secondary='user_roles')
+    confirmation_code = db.Column(db.String(10))
+    chat_id = db.Column(db.Integer())
 
     @classmethod
-    def find_by_username(cls, username):
-        return cls.query.filter_by(username=username).first()
-
-    @classmethod
-    def return_all(cls):
-        def to_json(x):
-            return {
-                "username": x.username,
-                "password": x.password
-            }
-        return {"users": list(map(lambda x: to_json(x), UserModel.query.all()))}
-
-    @classmethod
-    def delete_all(cls):
-        try:
-            num_rows_deleted = db.session.query(cls).delete()
-            db.session.commit()
-            return {"message": "{} rows deleted.".format(num_rows_deleted)}
-        except:
-            return {"message": "Something went wrong."}
-
+    def find_by_email(cls, email):
+        return cls.query.filter_by(email=email).first()    
+    
     @staticmethod
     def generate_hash(password):
         return sha256.hash(password)

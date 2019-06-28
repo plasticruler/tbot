@@ -42,6 +42,6 @@ class CeleryConfig(object):
         },
         'process-share-data': {
             'task': 'app.tasks.process_shareprice_data',
-            'schedule': crontab(minute="1,19,33,47", hour="7-16", day_of_week="mon,tue,wed,thu,fri")
+            'schedule': crontab(minute="1", hour="7-16", day_of_week="mon,tue,wed,thu,fri")
         }
     }

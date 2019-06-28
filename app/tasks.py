@@ -6,7 +6,7 @@ import json
 from urllib import parse
 from urllib.parse import urlparse
 import redis
-
+import uuid
 import smtplib
 import os
 import glob
@@ -26,8 +26,6 @@ import re
 from mp3_tagger import MP3File, VERSION_1, VERSION_2, VERSION_BOTH
 from app.utils import get_prices_from_sn_source
 import matplotlib.pyplot as plt
-
-
 
 TASK_NOTIFICATION_EMAIL = os.getenv('NOTIFICATIONS_RECIPIENT_EMAIL')
 GMAIL_PASSWORD = os.getenv('GMAIL_PASSWORD')
@@ -243,7 +241,6 @@ def update_reddit_subs_from_title(subreddit, top_of='week', limit=50, prefix=Non
         bq.tags = [subreddit]
         bq.save_to_db()
     send_system_notification(
-
         'Update for {} successful.'.format(subreddit), email=True)
 ###########################################
 
@@ -276,8 +273,7 @@ def update_multiple_reddit_subs_using_payload(subredditlist, top_of='month', lim
 @celery.task
 def update_multiple_reddit_subs_using_title(subredditlist, top_of='month', limit=500):
     for subreddit in subredditlist.split(','):
-        update_reddit_subs_from_title(
-            subreddit, top_of, limit, prefix=subreddit)
+        update_reddit_subs_from_title(subreddit, top_of, limit, prefix=subreddit)
 ############################################
 
 def get_filename_from_url(url):
@@ -298,7 +294,7 @@ def get_default_browser_headers(**kwargs):
     if "headers" in kwargs:
         d = kwargs["headers"]
     if "User-Agent" not in d:
-        d["User-Agent"] = "Mozilla/5.0"
+        d["User-Agent"] = "Mozilla/5.0 (Nintendo 3DS; U; ; en) Version/1.7412.EU" #lolz
     return d
 ###########################################
 
@@ -327,14 +323,18 @@ def send_chart(share_code, chat_id):
     #maybe cache the file and not regen at every request
     instrument = EquityInstrument.find_by_code(share_code)
     prices = EquityPrice.get_last_sales_prices_by_date(share_code, today)
-    earliest_time_for_records = min([x[0] for x in prices])
-    plt.plot([x[1] for x in prices], linewidth=4)
-    plt.title("{} - {}".format(instrument.company_name, instrument.jse_code))
+    if len(prices) == 0:
+        send_bot_message(chat_id, "No records for today.")
+        return
+    earliest_time_for_records = min([x.downloaded_timestamp for x in prices])
+    last_record_price = prices[-1].last_sales_price
+    plt.plot([p.past_sales_price for p in prices], linewidth=4)
+    plt.title("{} - {} ({}c)".format(instrument.company_name, instrument.jse_code, last_record_price))
     plt.ylabel('Price (c)')
     plt.xlabel('Time')
-    plt.xticks(range(len(prices)), [x[0].strftime('%H:%M') for x in prices], rotation='vertical')
-    fn = "{}/{}.png".format(os.getenv('DOWNLOAD_FOLDER'), share_code)
-    log.info('Saving photo to {}'.format(fn))
+    plt.xticks(range(len(prices)), [x.downloaded_timestamp.strftime('%H:%M') for x in prices], rotation='vertical')
+    fn = "{}/{}-{}.png".format(os.getenv('DOWNLOAD_FOLDER'),int(time.time()),share_code)
+    log.debug('Saving photo to {}'.format(fn))
     plt.savefig(fn)
     photo = open(fn, 'rb')
     bot.send_photo(chat_id, photo, caption="{} ({})".format(instrument.company_name, share_code))
@@ -345,13 +345,16 @@ def download_share_prices():
     for source in sources: #actualy what we need here is a plugin that gets activated
         if not source.source_key == 'SHN':
             continue
-        log.info("Running source: {}".format(source.source_name))
+        log.debug("Running source: {}".format(source.source_name))
         tracked_instruments = EquityInstrument.query.filter_by(is_active=True)
         for ins in tracked_instruments:
-            log.info("Downloading price data for {}.".format(ins.jse_code))
+            log.debug("Downloading price data for {}.".format(ins.jse_code))
             fname = "{}{}-{}-{}.sd-snapshot".format(DOWNLOAD_FOLDER, time.time(), ins.jse_code, source.source_key)
             download_file.delay(source.data1.format(ins.jse_code), fname)
 
+@celery.task
+def set_closing_share_prices():
+    unclosed_prices = EquityPrice.query.filter_by
 @celery.task
 def process_shareprice_data():
     for f in glob.glob('{}*SHN.sd-snapshot'.format(DOWNLOAD_FOLDER)):
@@ -400,7 +403,7 @@ def is_video_related_post(payload):
 
 @celery.task
 def send_random_quote(chat_id):
-    payload = Bot_Quote().return_random()['quotes']
+    payload = Bot_Quote.return_random()['quotes']
     if "media" not in payload['quote']:
         bot.send_message(chat_id, "{} ({})".format(
             payload['quote'], payload['id']))
@@ -415,7 +418,7 @@ def send_random_quote(chat_id):
 ###########################################
 @celery.task
 def send_uptime_message():
-    send_random_quote.delay()
+    send_random_quote(ADMIN_CHAT_ID)
     #send_system_notification.delay("System is up and running.")
 ###########################################
 
@@ -439,7 +442,7 @@ def download_file(url, destination, **kwargs):
 @celery.task
 def send_system_notification(subject, plainTextMessage=None, email=False, send_to_bot=True):
     if send_to_bot:
-        send_bot_message.delay(ADMIN_CHAT_ID, subject)
+        send_bot_message(ADMIN_CHAT_ID, subject)
     if email:
         send_email.delay(TASK_NOTIFICATION_EMAIL, subject,
                          "Nothing here." if plainTextMessage is None else plainTextMessage, True)
@@ -448,7 +451,7 @@ def send_system_notification(subject, plainTextMessage=None, email=False, send_t
 
 @celery.task
 def send_bot_message(chat_id, messageText):
-    bot.send_message(chat_id, messageText)
+    bot.send_message(chat_id, messageText, disable_web_page_preview=True)
 ##########################################
 
 @celery.task
@@ -465,6 +468,6 @@ def send_email(to, subject, plaintextMessage, deletable=True):
         server.login(GMAIL_ACCOUNT, GMAIL_PASSWORD)
         server.sendmail(FROM_ADDRESS, TASK_NOTIFICATION_EMAIL, message)
         server.quit()
-        print("Email '{}' to {} sent.".format(subject, to))
+        log.debug("Email '{}' to {} sent.".format(subject, to))
     except Exception as e:
         log.error(e)      

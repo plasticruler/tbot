@@ -1,0 +1,29 @@
+<!-- templates/subreddits.html -->
+
+{% extends "base.html" %}
+
+{% block content %}    
+<form action="#">
+    <table class="table">      
+    <thead>
+        <th>Subreddit name</th>
+        
+        <th>Media</th>
+    </thead>
+    {%for r in reddits %}
+        <tr>
+            <td>{{r.value}}<td>
+            <td>{{r.key.name}}<td>
+        </tr>            
+    {%endfor%}   
+    <tfooter>        
+        <tr>
+            <td>&nbsp;<td>
+            <td>&nbsp;<td>
+            <td><button class="btn right">Save</button></td>                                
+        </tr>
+    </tfooter>                       
+    </table>                       
+    </div>
+    </form.
+{% endblock %}

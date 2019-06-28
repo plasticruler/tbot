@@ -5,13 +5,14 @@ import random
 import re
 import uuid
 from urllib import parse
+from flask import request
 
 import redis
 import requests
 from telebot import types
 import re
 
-from app import bot, log
+from app import app, bot, log
 from app.models import Bot_Quote, SelfLog, EquityInstrument
 from app.tasks import download_youtube, learn_face, recognise_face, save_inbound_message, send_email, send_random_quote, send_chart
 
@@ -20,6 +21,7 @@ REDIS_PASSWORD = os.getenv('REDIS_PASSWORD')
 REDIS_PORT = os.getenv('REDIS_PORT')
 ADMIN_EMAIL = os.getenv('NOTIFICATIONS_RECIPIENT_EMAIL')
 BOT_API_KEY = os.getenv('BOT_API_KEY')
+BOT_SECRET = os.getenv('BOT_SECRET')
 ADMIN_EMAIL = os.getenv('NOTIFICATIONS_RECIPIENT_EMAIL')
 DOWNLOAD_FOLDER = os.getenv('DOWNLOAD_FOLDER')
 ADMIN_CHAT_ID = os.getenv('ADMIN_CHAT_ID')
@@ -29,6 +31,13 @@ redis_instance = redis.Redis(host=REDIS_SERVER, port=REDIS_PORT,
 
 authorised_usernames = os.getenv('AUTHORIZED_USERNAMES').split(',')
 
+#set up hook
+@app.route('/{}'.format(BOT_SECRET), methods=['POST'])
+def webhook():
+    update = telebot.types.Update.de_json(
+        request.stream.read().decode('utf-8'))
+    bot.process_new_updates([update])
+    return 'ok'
 
 
 # BOT RELATED
@@ -272,7 +281,6 @@ def get_key(redis_key, key):
 
 def get_photo_operation(message):
     try:
-        print("In get_photo_operation")
         chat_id = message.chat.id
         operation = message.text
         if operation not in ("Learn", "Recognise"):
