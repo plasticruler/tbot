@@ -274,13 +274,19 @@ class UserRole(BaseModel):
     user_id = db.Column(db.Integer(), db.ForeignKey('users.id', ondelete='CASCADE'))
     roles_id = db.Column(db.Integer(), db.ForeignKey('roles.id', ondelete='CASCADE'))
 
+class UserSubscription(BaseModel):
+    __tablename__ = 'user_subscriptions'
+    user_id = db.Column(db.Integer(), db.ForeignKey('users.id', ondelete='CASCADE'))
+    content_id = db.Column(db.Integer(), db.ForeignKey('keyvalue_entry.id'))
+
 class User(UserMixin, BaseModel):
-    __tablename__ = 'users'
+    __tablename__ = "users"
     email = db.Column(db.String(120), unique=True, nullable=False)
     email_confirmed_at = db.Column(db.DateTime())
     password = db.Column(db.String(120), nullable=False)
     active = db.Column(db.Boolean, default=True, nullable=False)
-    roles = db.relationship('Role', secondary='user_roles')
+    roles = db.relationship("Role", secondary="user_roles")
+    subscriptions = db.relationship("KeyValueEntry", secondary = "user_subscriptions")
     confirmation_code = db.Column(db.String(10))
     chat_id = db.Column(db.Integer())
 
