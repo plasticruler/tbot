@@ -3,7 +3,7 @@ Install is somewhat complex but you only need to do it once.
 
 # Component list
 - A raspberry pi. Ok maybe not, but doesn't that just sound sexy? My instance runs off a RasPi 3.
-- Ubuntu/Debian. Code might work on windows but I don't know if all of the dependencies are available for that operating system.
+- Ubuntu/Debian. It will not work on Windows as Celery is no longer supported on that platform.
 - Python 3.5+
 - Apache2
 - Supervisor (to run celery/beat as a daemonized process)
