@@ -4,7 +4,7 @@ from app.models import User
 import datetime
 from app.tasks import send_email, send_bot_message
 
-from app import db
+from app import db, log
 
 auth = Blueprint('auth', __name__)
 
@@ -18,11 +18,11 @@ def login():
         if not user or not User.verify_hash(password, user.password):
             flash('User invalid or password incorrect.')
             return redirect(url_for('auth.login'))        
-        login_user(user, remember=remember)
+        
         if not user.active:
             flash('You need to enter <a href={}>your confirmation code</a>'.format(url_for('auth.activation')))
             return redirect(url_for('auth.activation'))
-        
+        login_user(user, remember=remember)
         return redirect(url_for('main.profile'))
     return render_template('login.html')
 
@@ -49,12 +49,15 @@ def signup():
 def activation():
     if request.method == 'POST':
         confirmation_code = request.form.get('confirmation_code')
-        if current_user.email == request.form.get('email') and current_user.confirmation_code == confirmation_code:
-            current_user.active = True
-            current_user.email_confirmed_at = datetime.datetime.now()
-            current_user.save_to_db()
-            send_bot_message(507326803, 'Thanks, your account is confirmed!')
-            redirect(url_for('main.profile'))
+        user = User.find_by_email(request.form.get('email'))
+        
+        if user is not None and user.confirmation_code == confirmation_code:
+            user.active = True
+            user.email_confirmed_at = datetime.datetime.now()
+            user.save_to_db()
+            send_bot_message(user.chat_id, 'Thanks, your account is confirmed!')
+            login_user(user)
+            return redirect(url_for('main.profile'))
     return render_template('activation.html')
 
 @auth.route('/users', methods=['GET', 'POST'])

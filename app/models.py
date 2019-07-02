@@ -17,9 +17,9 @@ from app import db, log
 
 
     
-def generate_random_confirmation_code():
-    letters = "ABCDEF23456789HJKMNPQRSTUVXYZpoes#@+"
-    return ''.join((random.choice(letters) for i in range(10)))
+def generate_random_confirmation_code(length = 10):
+    letters = "ABCDEF23456789HJKMNPQRSTUVXYZp@es"
+    return ''.join((random.choice(letters) for i in range(length)))
 
 # https://stackoverflow.com/questions/21292726/how-to-properly-use-association-proxy-and-ordering-list-together-with-sqlalchemy
 tags = db.Table('tag_associations',
@@ -293,9 +293,9 @@ class User(UserMixin, BaseModel):
     @classmethod
     def find_by_email(cls, email):
         return cls.query.filter_by(email=email).first() 
-
+    @classmethod
     def find_by_chatid(cls, chatid):
-        return cls.query.filter(chat_id=chatid).first() 
+        return cls.query.filter_by(chat_id=chatid).first() 
 
     @staticmethod
     def generate_hash(password):

@@ -1,0 +1,8 @@
+help - help
+start - start
+quote -send a random quote
+8ball - eight ball
+register - register for an account
+slog - send a personal message to yourself
+chart - /chart npn
+activate - activate your account

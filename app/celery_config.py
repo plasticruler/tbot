@@ -24,7 +24,7 @@ class CeleryConfig(object):
     CELERYBEAT_SCHEDULE = {
         'send-uptime-message': {
             'task': 'app.tasks.send_uptime_message',
-            'schedule': crontab(hour="6,8,10,12,14,16,18", minute=0),  # UTC
+            'schedule': crontab(hour="6,8,10,12,14,16,18", minute=1),  # UTC
         },
         'update-subreddits-by-payload': {
             'task': 'app.tasks.update_multiple_reddit_subs_using_payload',

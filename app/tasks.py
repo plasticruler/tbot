@@ -435,7 +435,7 @@ def is_video_related_post(payload):
 @celery.task
 def send_random_quote(chat_id):
     # based on the chat_id, we need to get a random quote from users subscribed items
-    user = User.query.filter(User.chat_id == chat_id).first()
+    user = User.find_by_chatid(chat_id)
     if user is None:
         bot.send_message(chat_id, "You don't appear to be registered, yet.")
         return
@@ -444,19 +444,21 @@ def send_random_quote(chat_id):
     taglist = [t.content.value for t in subs]
     quote = Bot_Quote.return_random_by_tags(taglist)
     if quote is None:
-        bot.send_message(
-            chat_id, "There are no subscribed topics for this user.")
+        bot.send_message(chat_id, "There are no subscribed topics for this user.")
         return
     payload = None
     try:
         payload = json.loads(quote.text)
-    except json.JSONDecodeError:
-        bot.send_message(ADMIN_CHAT_ID, "{} ({})".format(quote.text, quote.id))
-    log.info(payload)
-    url = payload['url']    
-    if has_content_moved(url):
-        send_random_quote(chat_id)    
+        log.debug(payload)
+        url = payload['url']            
+    except ValueError:
+        bot.send_message(ADMIN_CHAT_ID, "{} ({})".format(quote.text, quote.id)) #plaintext
         return
+
+    if has_content_moved(url):
+            send_random_quote(chat_id)    
+            return
+
     if is_video_related_post(payload):
         # is gfycat
         if 'media' in payload and payload['media'] is not None:

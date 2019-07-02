@@ -12,7 +12,8 @@ import telebot
 import re
 
 from app import app, bot, log
-from app.models import Bot_Quote, SelfLog, EquityInstrument
+from app.models import Bot_Quote, SelfLog, EquityInstrument, User, generate_random_confirmation_code
+
 from app.tasks import download_youtube, learn_face, recognise_face, save_inbound_message, send_email, send_random_quote, send_chart
 
 REDIS_SERVER = os.getenv('REDIS_SERVER')
@@ -40,11 +41,14 @@ def webhook():
 
 
 # BOT RELATED
-@bot.message_handler(commands=['help', 'start', 'convert', 'quote', '8ball', 'register','slog','chart'])
+@bot.message_handler(commands=['help', 'start', 'convert', 'quote', '8ball', 'register','slog','chart','activate'])
 def send_welcome(message):
     save_inbound_message.delay(str(message))
     chat_id = message.chat.id
+    
     if "/quote" in message.text:
+        send_random_quote(chat_id)
+    elif "/start" in message.text:
         send_random_quote(chat_id)
     elif "/chart" in message.text:
         codes = message.text.split()
@@ -53,12 +57,12 @@ def send_welcome(message):
             code = codes[1]
         send_chart(code, chat_id)
     elif "/register" in message.text:
-        msg = bot.reply_to(
-            message, "This is the registration step. What is your surname?")
+        msg = bot.reply_to(message, "Ok, what is your email address?")
         redis_key = "{}-register".format(chat_id)
-        process_and_save_response(
-            redis_key, "firstname", message.from_user.first_name)
-        bot.register_next_step_handler(msg, process_surname_step)
+        process_and_save_response(redis_key, "firstname", message.from_user.first_name)
+        bot.register_next_step_handler(msg, process_email_step)
+    elif "/activate" in message.text:
+        activate_account(message)
     elif "/slog" in message.text:
         if message.chat.type == "private":
             sl = SelfLog()
@@ -81,6 +85,24 @@ def send_welcome(message):
     else:
         bot.send_message(message.chat.id, 'Ok {}. Go ahead.'.format(
             message.from_user.first_name))
+
+def activate_account(message):
+    chat_id = message.chat.id
+    user = User.find_by_chatid(chat_id)
+    if user is None:
+        bot.send_message(chat_id, "It doesn't look like you've registered. Try /register and follow the prompts.")
+        return
+    registration_code = message.text.split()[1] if len(message.text.split()) == 2 else "none"
+    if registration_code == "none":
+        bot.send_message(chat_id, "Sorry, that command is invalid. Try /activate <activation_code>")
+        return
+    if user.confirmation_code == registration_code:
+        user.email_confirmed_at = datetime.datetime.now()
+        user.active = True
+        user.save_to_db()
+        bot.send_message(chat_id, "Great, your account is activated!")
+    else:
+        bot.send_message(chat_id, "Looks like you've entered an invalid active code.")
 
 
 def message_contains_youtube_url(message):
@@ -214,14 +236,24 @@ def get_photo_operation(message):
         bot.reply_to(message, 'oops')
 
 
-def process_surname_step(message):
+def process_email_step(message):
     try:
         chat_id = message.chat.id
-        surname = message.text
+        email = message.text
         redis_key = "{}-register".format(chat_id)
-        process_and_save_response(redis_key, "surname", surname)
-        msg = bot.reply_to(message, "And how old are you?")
-        bot.register_next_step_handler(msg, process_age_step)
+        process_and_save_response(redis_key, "email", email)
+        data = redis_instance.hgetall(redis_key)                
+        user = User.find_by_email(email)
+        if user is not None:
+            bot.send_message(chat_id, 'It looks like {} has already registered.'.format(email))
+            return
+        bot.send_message(chat_id, "Ok {}, I'll send a message to {} containing your confirmation code.".format(get_key(redis_key, 'firstname'),
+                                                                                        get_key(redis_key, 'email')))
+        password = generate_random_confirmation_code(10)
+        new_user = User(email=email, password=User.generate_hash(password), chat_id = chat_id)        
+        new_user.save_to_db()
+        send_email(email,"@DistractoBot confirmation code", "Your confirmation code is {}. Your password is {}. If this email was sent in error please ignore it.".format(new_user.confirmation_code, password))
+        
     except Exception as e:
         log.error(str(e))
         bot.reply_to(message, 'oops')
