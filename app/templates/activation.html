@@ -1,11 +1,11 @@
-<!-- templates/login.html -->
+<!-- templates/activation.html -->
 
 {% extends "base.html" %}
 
 {% block content %}
 <div class="row">
 <div class="card-panel col s12 z-depth-6">
-    <h3 class="title">Login</h3>
+    <h3 class="title">Account activation</h3>
                         <div class="box">
                         {% with messages = get_flashed_messages() %}
                     {% if messages %}
@@ -23,18 +23,13 @@
 
             <div class="row">
                 <div class="col s6">
-                    <input class="input-field" type="password" name="password" placeholder="Your Password">
+                    <input class="input-field" type="text" name="confirmation_code" placeholder="Confirmation code">
                 </div>
             </div>
-            <div class="row">
-                <label class="col s6">
-                    <input type="checkbox">
-                    <span>Remember me</span>
-                </label>
-            </div>
+         
             <div class="row">
                 <div class="col s12">
-                    <button class="btn" type="submit">Login</button>
+                    <button class="btn" type="submit">Confirm</button>
                 </div>
                 
             </div>            

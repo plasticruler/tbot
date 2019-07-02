@@ -17,12 +17,8 @@ import sys
 import datetime
 import matplotlib.pyplot as plt
 
-
 from app.config import Config
-
-
 import json
-
 import telebot
 
 
@@ -39,21 +35,15 @@ db = SQLAlchemy(app)
 
 migrate = Migrate(app, db)
 
-from .auth_routes import auth as auth_blueprint
-app.register_blueprint(auth_blueprint)
-
-from .main_routes import main as main_blueprint
-app.register_blueprint(main_blueprint)
-
-login_manager = LoginManager()
-login_manager.login_view = 'auth.login'
-login_manager.init_app(app)
 
 BOT_API_KEY = app.config['BOT_API_KEY']
 BOT_HOST = app.config['BOT_HOST']
 BOT_SECRET = app.config['BOT_SECRET']
 
 bot = telebot.TeleBot(BOT_API_KEY, threaded=False, skip_pending=True)
+
+
+
 
 # celery
 
@@ -72,7 +62,17 @@ def make_celery(app):
     celery.Task = ContextTask
     return celery 
 
-from app.resources import TagResource, QuoteResource, EquityInstrumentResource, TrackedInstrumentResource
+from .auth_routes import auth as auth_blueprint
+app.register_blueprint(auth_blueprint)
+
+from .main_routes import main as main_blueprint
+app.register_blueprint(main_blueprint)
+
+login_manager = LoginManager()
+login_manager.login_view = 'auth.login'
+login_manager.init_app(app)
+
+
 from app import bothandlers, tasks, models
 
 from app.models import EquityInstrument, Key, KeyValueEntry, EquityPrice, User
@@ -85,15 +85,14 @@ def load_user(user_id):
     return User.query.get(int(user_id))
 
 # register api resources
-api.add_resource(TagResource, '/api/1.0/tag')
-api.add_resource(QuoteResource, '/api/1.0/quote')
-api.add_resource(EquityInstrumentResource, '/api/1.0/equityinstrument/')
-api.add_resource(TrackedInstrumentResource, '/api/1.0/trackedinstrument/')
+#api.add_resource(TagResource, '/api/1.0/tag')
+#api.add_resource(QuoteResource, '/api/1.0/quote')
+#api.add_resource(EquityInstrumentResource, '/api/1.0/equityinstrument/')
+#api.add_resource(TrackedInstrumentResource, '/api/1.0/trackedinstrument/')
 
 #########
 
 # cli click commands
-
 
 @app.cli.command()
 @click.argument('url')
@@ -156,15 +155,20 @@ def importkeyvaluepairs(file_name):
             kv.save_to_db()
     log.info('Processing done.')
 
-#@app.cli.command()
-#@click.argument('url') 
-#def sendvideo(url):
-#    bot.send_video(os.getenv('ADMIN_CHAT_ID'), url)
+@app.cli.command()
+@click.argument('url') 
+def sendvideo(url):
+    bot.send_video(os.getenv('ADMIN_CHAT_ID'), url)
 
 @app.cli.command()
 @click.argument('subredditname')
 def importredditmediatargeted(subredditname):
     tasks.update_reddit_subs_using_payload.delay(subredditname,limit=1000)
+
+@app.cli.command()
+def sendrandomquote():
+    ADMIN_CHAT_ID = os.getenv('ADMIN_CHAT_ID')
+    tasks.send_random_quote(ADMIN_CHAT_ID)
 
 @app.cli.command()
 @click.argument('subredditname')

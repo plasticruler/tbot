@@ -7,30 +7,22 @@
     <table class="table">      
     <thead>
     <tr>
-        <th>Company Name</th>
-        <th>JSE CODE</th>
+        <th>Email Address</th>
+        <th>Confirmation_Code</th>        
         <th>Is Active</th>
+        <th>Confirmed At</th>
+        <th>Chat Id</th>
     </tr>
     </thead>
-    {%for instrument in instruments %}
+    {%for user in users %}
         <tr>
-            <td>{{instrument.company_name}}<td>
-            <td>{{instrument.jse_code}}<td>
-            <td>
-            <label>
-                <input type="checkbox" name="{{instrument.jse_code}}" id="{{instrument.jse_code}}" {%if instrument.is_active%} checked="checked" {%endif%}/>                                                    
-                <span>Tracked</span>
-            </label>
-            <td>
+            <td>{{user.email}}<td>
+            <td>{{user.confirmation_code}}<td>
+            <td>{{user.is_active}}<td>
+            <td>{{user.email_confirmed_at}}<td>
+            <td>{{user.chat_id}}
         </tr>            
-    {%endfor%}   
-    <tfooter>        
-        <tr>
-            <td>&nbsp;<td>
-            <td>&nbsp;<td>
-            <td><button class="btn right">Save</button></td>                                
-        </tr>
-    </tfooter>                       
+    {%endfor%}       
     </table>                       
     </div>
     </form.

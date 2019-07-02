@@ -8,7 +8,7 @@
     
 <div class="card-panel col s12 z-depth-6">
 <h1 class="title">
-    Welcome, {{email_address}} ({{cnt}})
+    Enter your subscriptions
     </h1>
         <form class="col s12" action="{{url_for('main.profile')}}" method='POST'>
             <div class="row">
@@ -32,11 +32,13 @@
                     <th>
                         Subscriptions
                     </th>
+                    <th>&nbsp;</th>
                 </tr>
             </theader>
             {%for r in subscriptions%}
             <tr>
-              <td>{{r.value}}</td>  
+              <td>{{r.content.value}}</td> 
+              <td><a href="{{url_for('main.profile',id=[r.id])}}"><i class="material-icons red-text">delete</i></a></td> 
             </tr>
             {%endfor%}
             

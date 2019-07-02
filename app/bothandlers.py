@@ -8,8 +8,7 @@ from urllib import parse
 from flask import request
 
 import redis
-import requests
-from telebot import types
+import telebot
 import re
 
 from app import app, bot, log
@@ -78,6 +77,7 @@ def send_welcome(message):
             return
         if message_contains_youtube_url(message):
             handle_convert_command(message)
+    
     else:
         bot.send_message(message.chat.id, 'Ok {}. Go ahead.'.format(
             message.from_user.first_name))
@@ -115,7 +115,7 @@ def handle_convert_command(message):
 
     if len(youtubes) > 0:
         yurl = youtubes[0][0]
-        markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
+        markup = telebot.types.ReplyKeyboardMarkup(one_time_keyboard=True)
         markup.add('Yes', 'No')
         msg = bot.reply_to(
             message, "Do you want me to download and convert this video to mp3?", reply_markup=markup)

@@ -6,7 +6,7 @@ from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy_utils import ArrowType, auto_delete_orphans
 from sqlalchemy.sql import func
-from sqlalchemy.orm import load_only
+from sqlalchemy.orm import load_only, relationship
 from sqlalchemy.exc import SQLAlchemyError
 
 from passlib.hash import pbkdf2_sha256 as sha256
@@ -14,6 +14,12 @@ import random
 import datetime
 
 from app import db, log
+
+
+    
+def generate_random_confirmation_code():
+    letters = "ABCDEF23456789HJKMNPQRSTUVXYZpoes#@+"
+    return ''.join((random.choice(letters) for i in range(10)))
 
 # https://stackoverflow.com/questions/21292726/how-to-properly-use-association-proxy-and-ordering-list-together-with-sqlalchemy
 tags = db.Table('tag_associations',
@@ -26,7 +32,13 @@ class BaseModel(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     created_on = db.Column(db.DateTime, default=datetime.datetime.now)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
-
+    def delete(self):
+        try:
+            db.session.delete(self)
+            db.session.commit()
+        except SQLAlchemyError as e:
+            log.error(str(e))
+            db.session.rollback()
     def save_to_db(self):
         try:
             db.session.add(self)
@@ -45,36 +57,27 @@ class Tag(BaseModel):
         self.name = name
 
     @classmethod
-    def return_all(cls):
-        def to_json(x):
-            return {'name': x.name, 'active': x.is_active}
-
-        return {'tags': list(map(lambda x: to_json(x), Tag.query.all()))}
-
-    @classmethod
     def find_by_name(cls, name):
         return cls.query.filter_by(name=name).first()
 
 
 class Bot_Quote(BaseModel):
     __tablename__ = 'bot_quote'
-    _tags = db.relationship('Tag', secondary=tags, backref='bot_quote')
-    tag_list = association_proxy('_tags', 'name')
+    tags = db.relationship('Tag', secondary=tags, backref='bot_quote')
     text = db.Column(db.String(500))
     content_hash = db.Column(db.String(128)) #the hash of the content item
-
-    @property
-    def tags(self):
-        tag_list = getattr(self, 'tag_list', [])
-        return tag_list if (tag_list != ['']) else []
-
-    @tags.setter
-    def tags(self, tag_list):
-        self._tags = [self.find_or_create_tag(t) for t in tag_list]
-
+    
+    @classmethod
+    def return_random_by_tags(cls, tag_list):
+        if tag_list is None or tag_list is []:
+            log.info('no tag list passed in')
+            return return_random()
+        rowCount = db.session.query(Bot_Quote).join(Tag, Bot_Quote.tags).filter(Tag.name.in_(tag_list)).count()
+        return Bot_Quote.query.join(Tag, Bot_Quote.tags).filter(Bot_Quote.is_active == True, Tag.name.in_(tag_list)).offset(int(rowCount*random.random())).first()
+    
     @classmethod
     def return_random(cls):        
-        rowCount = int(cls.query.count())
+        rowCount = cls.query.count()
         return cls.query.filter(Bot_Quote.is_active == True).offset(int(rowCount*random.random())).first()
 
     def find_or_create_tag(self, name):
@@ -82,7 +85,6 @@ class Bot_Quote(BaseModel):
         if t is None:
             t = Tag(name=name)
         return t
-    
 
     def __repr__(self):
         return '<Bot_Quote {}>'.format(self.text)
@@ -139,20 +141,8 @@ class EquityInstrument(BaseModel):
         'EquityPrice', backref='equity_instrument', lazy=True)
 
     @classmethod
-    def to_json(cls, x):
-        return {'company_name': x.company_name, 'jse_code': x.jse_code, 'is_active': x.is_active}
-
-    @classmethod
-    def return_all(cls):
-        return {'instruments': list(map(lambda x: EquityInstrument.to_json(x), EquityInstrument.query.all()))}
-
-    @classmethod
     def find_by_code(cls, code):
         return EquityInstrument.query.filter_by(jse_code=code).first()
-
-    @classmethod
-    def return_tracked(cls):
-        return {'instruments': list(map(lambda x: x.jse_code, EquityInstrument.query.filter_by(is_active=True)))}
 
     def __repr__(self):
         return '<EquityInstrument {} - {}>'.format(self.jse_code, self.company_name)
@@ -278,22 +268,35 @@ class UserSubscription(BaseModel):
     __tablename__ = 'user_subscriptions'
     user_id = db.Column(db.Integer(), db.ForeignKey('users.id', ondelete='CASCADE'))
     content_id = db.Column(db.Integer(), db.ForeignKey('keyvalue_entry.id'))
-
+    content = db.relationship('KeyValueEntry', backref='user_subscriptions')
+    user = db.relationship('User', backref='user_subscriptions')
+    
+    def __repr__(self):
+        return "<UserSubscription user_id: {} content_id: {}".format(self.user_id, self.content_id)
+    
+    @classmethod
+    def get_by_user(cls, user_id):
+        return cls.query.filter(UserSubscription.user_id==user_id)
 class User(UserMixin, BaseModel):
     __tablename__ = "users"
     email = db.Column(db.String(120), unique=True, nullable=False)
     email_confirmed_at = db.Column(db.DateTime())
     password = db.Column(db.String(120), nullable=False)
-    active = db.Column(db.Boolean, default=True, nullable=False)
+    active = db.Column(db.Boolean, default=False, nullable=False)
     roles = db.relationship("Role", secondary="user_roles")
-    subscriptions = db.relationship("KeyValueEntry", secondary = "user_subscriptions")
-    confirmation_code = db.Column(db.String(10))
+    confirmation_code = db.Column(db.String(10), default=generate_random_confirmation_code())
     chat_id = db.Column(db.Integer())
+
+    def __repr__(self):
+        return "<User: {} {}>".format(self.id, self.email)
 
     @classmethod
     def find_by_email(cls, email):
-        return cls.query.filter_by(email=email).first()    
-    
+        return cls.query.filter_by(email=email).first() 
+
+    def find_by_chatid(cls, chatid):
+        return cls.query.filter(chat_id=chatid).first() 
+
     @staticmethod
     def generate_hash(password):
         return sha256.hash(password)
