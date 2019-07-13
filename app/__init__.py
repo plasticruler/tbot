@@ -24,6 +24,7 @@ import telebot
 
 logging.basicConfig(level=logging.DEBUG)
 logging.getLogger('flask_cors').level = logging.DEBUG
+
 log = logging.getLogger(__name__)
 
 app = Flask(__name__)

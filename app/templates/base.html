@@ -10,13 +10,22 @@
       <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <!-- Compiled and minified CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/easy-autocomplete/1.3.5/easy-autocomplete.min.css" 
+    integrity="sha256-fARYVJfhP7LIqNnfUtpnbujW34NsfC4OJbtc37rK2rs=" crossorigin="anonymous" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/easy-autocomplete/1.3.5/easy-autocomplete.themes.min.css" 
+    integrity="sha256-kK9BInVvQN0PQuuyW9VX2I2/K4jfEtWFf/dnyi2C0tQ=" crossorigin="anonymous" />
 </head>
 
 <body>
+<ul id="admin_menu" class="dropdown-content">
+    <li><a href="{{url_for('main.schedules')}}">Schedules</a></li>
+    <li><a href="{{url_for('main.subreddits')}}">Subreddits</a></li>
+    <li><a href="{{url_for('main.instruments')}}">Instruments</a></li>
+    <li><a href="{{url_for('auth.users')}}">Users</a></li>
+</ul>
 <nav class="light-blue lighten-1" role="navigation">
     <div class="nav-wrapper container"><a id="logo-container" href="#" class="brand-logo">tbot Administration</a>
-      <ul class="right hide-on-med-and-down">
-        
+      <ul class="right hide-on-med-and-down">        
                         <li><a href="{{ url_for('main.index') }}" class="navbar-item">
                                 Home
                         </a></li>
@@ -25,15 +34,10 @@
                             <li><a href="{{ url_for('main.profile') }}" class="navbar-item">
                                 Profile
                             </a></li>
-                            <li><a href="{{ url_for('main.instruments') }}" class="navbar-item">
-                                Instrument Management
-                            </a></li>
-                            <li><a href="{{ url_for('auth.users') }}" class="navbar-item">
-                                Users
-                            </a></li>
-                            <li><a href="{{ url_for('main.subreddits') }}" class="navbar-item">
-                                SubReddits
-                            </a></li>
+                            <li><a class="dropdown-trigger" href="#!" data-target="admin_menu" class="navbar-item">
+                                Admin<i class="material-icons right">arrow_drop_down</i>
+                            </a></li>                            
+                            
                             <li><a href="{{ url_for('auth.logout') }}" class="navbar-item">
                                 Logout
                             </a></li>
@@ -61,7 +65,28 @@
                {% endblock %}          
     </div>
  </container>
-    <!-- Compiled and minified JavaScript -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+    <!-- Compiled and minified JavaScript -->    
+    <script src="https://code.jquery.com/jquery-2.2.4.min.js"
+            integrity="sha256-BbhdlvQf/xTY9gja0Dq3HiwQF8LaCRTXxZKRutelT44="
+            crossorigin="anonymous">
+    </script>    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/easy-autocomplete/1.3.5/jquery.easy-autocomplete.min.js" 
+            integrity="sha256-aS5HnZXPFUnMTBhNEiZ+fKMsekyUqwm30faj/Qh/gIA=" 
+            crossorigin="anonymous">
+    </script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+
+    
+
+    <script>
+       $(document).ready(function(){
+                 $('select')
+                    .not('.disabled')
+                    .formSelect();
+                $(".dropdown-trigger")
+                    .dropdown();
+            });    
+    </script>
 </body>
 </html>

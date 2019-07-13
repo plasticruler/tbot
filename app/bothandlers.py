@@ -14,7 +14,7 @@ import re
 from app import app, bot, log
 from app.models import Bot_Quote, SelfLog, EquityInstrument, User, generate_random_confirmation_code
 
-from app.tasks import download_youtube, learn_face, recognise_face, save_inbound_message, send_email, send_random_quote, send_chart
+from app.tasks import download_youtube, send_system_notification, learn_face, recognise_face, save_inbound_message, send_email, send_random_quote, send_chart
 
 REDIS_SERVER = os.getenv('REDIS_SERVER')
 REDIS_PASSWORD = os.getenv('REDIS_PASSWORD')
@@ -41,15 +41,14 @@ def webhook():
 
 
 # BOT RELATED
-@bot.message_handler(commands=['help', 'start', 'convert', 'quote', '8ball', 'register','slog','chart','activate'])
+@bot.message_handler(commands=['help', 'start', 'convert', 'quote', '8ball', 'register', 'slog','chart','activate','addsub'])
 def send_welcome(message):
     save_inbound_message.delay(str(message))
-    chat_id = message.chat.id
-    
+    chat_id = message.chat.id    
     if "/quote" in message.text:
         send_random_quote(chat_id)
-    elif "/start" in message.text:
-        send_random_quote(chat_id)
+    elif '/addsub' in message.text:
+        pass
     elif "/chart" in message.text:
         codes = message.text.split()
         code = 'STXNDQ'
@@ -57,10 +56,12 @@ def send_welcome(message):
             code = codes[1]
         send_chart(code, chat_id)
     elif "/register" in message.text:
-        msg = bot.reply_to(message, "Ok, what is your email address?")
-        redis_key = "{}-register".format(chat_id)
-        process_and_save_response(redis_key, "firstname", message.from_user.first_name)
+        msg = bot.reply_to(message, "Ok {}, what is your email address?".format(message.from_user.first_name))
         bot.register_next_step_handler(msg, process_email_step)
+        log.debug('nextstep registered')
+        redis_key = "{}-register".format(chat_id)
+        process_and_save_response(redis_key, "firstname", message.from_user.first_name)        
+        log.debug('data logged to redis')
     elif "/activate" in message.text:
         activate_account(message)
     elif "/slog" in message.text:
@@ -69,7 +70,7 @@ def send_welcome(message):
             sl.chat_id = chat_id
             sl.message = message.text
             sl.save_to_db()
-            bot.reply_to(message, 'Ok')
+            bot.reply_to(message, 'Ok, message logged')
     elif "/convert" in message.text:
         if not message.chat.type == "private":
             bot.send_message(message.chat.id, "{} sorry, you need to send that command in a private chat.".format(
@@ -81,11 +82,16 @@ def send_welcome(message):
             return
         if message_contains_youtube_url(message):
             handle_convert_command(message)
-    
     else:
         bot.send_message(message.chat.id, 'Ok {}. Go ahead.'.format(
             message.from_user.first_name))
-
+def addsub(message):
+    chat_id = message.chat.id
+    user = User.find_by_chatid(chat_id)
+    if user is None:
+        bot.send_message(chat_id, "It doesn't look like you've registered. Try /register and follow the prompts.")
+        return
+    
 def activate_account(message):
     chat_id = message.chat.id
     user = User.find_by_chatid(chat_id)
@@ -100,7 +106,8 @@ def activate_account(message):
         user.email_confirmed_at = datetime.datetime.now()
         user.active = True
         user.save_to_db()
-        bot.send_message(chat_id, "Great, your account is activated!")
+        bot.send_message(chat_id, "Great, your account is activated! An email was sent to {}.".format(user.email))
+        send_email(user.email, "@DistractoBot account details","Hi, Your account is available at {}. Your username is {}, and your password was sent to you previously. \n \nHave fun".format("https://zjremote.duckdns.org/bot/profile", user.email))
     else:
         bot.send_message(chat_id, "Looks like you've entered an invalid active code.")
 
@@ -233,7 +240,8 @@ def get_photo_operation(message):
             message, 'I can try and recognise or learn faces in the photo. What should I do?', reply_markup=markup)
         bot.register_next_step_handler(msg, process_photo_operation_step)
     except Exception as e:
-        bot.reply_to(message, 'oops')
+        log.error(str(e))
+        send_system_notification("[tbot] exception",str(e),email=True,send_to_bot=true)
 
 
 def process_email_step(message):
@@ -247,16 +255,16 @@ def process_email_step(message):
         if user is not None:
             bot.send_message(chat_id, 'It looks like {} has already registered.'.format(email))
             return
-        bot.send_message(chat_id, "Ok {}, I'll send a message to {} containing your confirmation code.".format(get_key(redis_key, 'firstname'),
+        bot.send_message(chat_id, "Ok {}, I'll send a message to {} containing your confirmation code. Enter '/activate <activation_code>' here when you receive it.".format(get_key(redis_key, 'firstname'),
                                                                                         get_key(redis_key, 'email')))
         password = generate_random_confirmation_code(10)
         new_user = User(email=email, password=User.generate_hash(password), chat_id = chat_id)        
         new_user.save_to_db()
-        send_email(email,"@DistractoBot confirmation code", "Your confirmation code is {}. Your password is {}. If this email was sent in error please ignore it.".format(new_user.confirmation_code, password))
-        
+        send_email(email,"@DistractoBot activation code", "Your activation code is {}. Your password is {}. If this email was sent in error please ignore it.".format(new_user.confirmation_code, password))
     except Exception as e:
         log.error(str(e))
-        bot.reply_to(message, 'oops')
+        send_system_notification("[tbot] exception",str(e),email=True,send_to_bot=true)
+        
 
 
 def process_age_step(message):
@@ -276,7 +284,7 @@ def process_age_step(message):
         bot.register_next_step_handler(msg, process_gender_step)
     except Exception as e:
         log.error(str(e))
-        bot.reply_to(message, 'oops')
+        send_system_notification("[tbot] exception",str(e),email=True,send_to_bot=true)
 
 
 def process_gender_step(message):
@@ -338,7 +346,7 @@ def get_photo_operation(message):
 
     except Exception as e:
         log.error(str(e))
-        bot.reply_to(message, 'oops')
+        send_system_notification("[tbot] exception",str(e),email=True,send_to_bot=true)
 
 
 def get_photo_name(message):

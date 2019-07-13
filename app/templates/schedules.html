@@ -1,0 +1,87 @@
+<!-- templates/activation.html -->
+
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="card-panel col s12 z-depth-6">
+    <h3 class="title">Task management</h3>
+                    <div class="row">
+                    <div class="col s6">
+                    {% for message in get_flashed_messages() %}                                            
+                            {{ message|safe }}                        
+                    {% endfor %}
+                    </div>
+        <form method="POST" action="{{url_for('main.schedules')}}" class="col s12">
+            <div class="row">
+                <div class="col s6">
+                    <input class="input-field" type="text" name="name" placeholder="Task name" autofocus="">
+                </div>
+            </div>
+
+            <div class="row">
+                <span class="col s2">
+                    <input class="input-field" type="text" name="minute" placeholder="minute" autofocus="">
+                </span>
+                <span class="col s2">
+                    <input class="input-field" type="text" name="hour" placeholder="hour" autofocus="">
+                </span>
+                <span class="col s2">
+                    <input class="input-field" type="text" name="day_of_week" placeholder="day of week" autofocus="">
+                </span>
+                <span class="col s2">
+                    <input class="input-field" type="text" name="day_of_month" placeholder="day of month" autofocus="">
+                </span>
+                <span class="col s2">
+                    <input class="input-field" type="text" name="month_of_year" placeholder="month of year" autofocus="">
+                </span>
+            </div>
+
+            <div class="row">
+                <div class="col s6">
+                    <input class="input-field" type="text" name="task_class" placeholder="task class"> 
+                </div>
+            </div>
+            <div class="row">
+                <div class="col s6">
+                    <button class="btn" type="submit">Save</button>
+                </div> 
+            </div>
+         
+            <div class="row">
+                <div class="col s12">
+                    <div class="card-panel col s12 z-depth-6">
+                        <h3 class="title">Task parameters</h3>
+                        <div class="row">                        
+                        <div class="input-field col s6">
+                            <select>
+                                <option value="" disabled selected>Parameter type</option>
+                                <option value="string">String</option>
+                                <option value="number">Number</option>                                
+                            </select>                            
+                        </div>                                                                            
+                    </div>
+                    <div class="row">
+                    <span class="col s2">
+                            <input class="input-field" type="text" name="parameter_value" placeholder="Value" autofocus="">
+                        </span>                
+                    </div>
+                    </div>
+                    <div class="row">
+                        <span class="col s6">
+                            <button class="btn" type="submit">Add Parameter</button>
+                        </span>                
+                    </div>
+                    </div>
+                    
+                </div>
+                
+            </div>            
+        </form>
+    </div>
+</div>
+
+
+</row>
+
+{% endblock %}

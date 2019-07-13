@@ -16,7 +16,7 @@ import youtube_dl
 from youtube_dl.postprocessor.ffmpeg import FFmpegMetadataPP
 import datetime
 from app import app, bot, make_celery, log
-from app.models import User, Bot_MessageInbound, UserSubscription, Face, Tag, Bot_Quote, EquityPriceSource, EquityInstrument, EquityPrice
+from app.models import ContentStats, User, Bot_MessageInbound, UserSubscription, Face, Tag, Bot_Quote, EquityPriceSource, EquityInstrument, EquityPrice
 import telebot
 from app.rbot import reddit
 import uuid
@@ -475,19 +475,26 @@ def send_random_quote(chat_id):
         try:
             log.debug('sending video')
             bot.send_video(chat_id, url, caption="{} (https://reddit.com/{})".format(payload['title'], payload['id']))
+            ContentStats.add_statistic(user, quote)
         except telebot.apihelper.ApiException as e:          
             send_random_quote(chat_id)        
         return
     try:
         log.debug('sending photo')
-        bot.send_photo(
-    chat_id, url, caption="{} (http://reddit.com/{})".format(payload['title'], payload['id']))
+        bot.send_photo(chat_id, url, caption="{} (http://reddit.com/{})".format(payload['title'], payload['id']))
+        ContentStats.add_statistic(user, quote)
     except telebot.apihelper.ApiException as e:
-        send_random_quote(chat_id)
+        send_random_quote(chat_id)        
 
 def has_content_moved(url):  # ignore when you are redirected to reddit
     r = requests.head(url, allow_redirects=False) #only request header
     return r.status_code == 302
+###########################################
+@celery.task
+def send_content_to_subscribers():
+    activated_users = User.query.filter(User.active==True, User.chat_id.isnot(None), User.subscriptions_active==True)
+    for u in activated_users:        
+        send_random_quote(u.chat_id)
 ###########################################
 @celery.task
 def send_uptime_message():

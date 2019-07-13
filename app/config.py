@@ -1,10 +1,10 @@
-# coding: utf-8
 import sys
 import os
 from dotenv import load_dotenv
 
-
 load_dotenv(verbose=True)
+
+print("bot host is '{}'".format(os.getenv('BOT_HOST')))
 
 class Config(object):
     CORS_ENABLED = True
@@ -21,9 +21,8 @@ class Config(object):
     SQLALCHEMY_DATABASE_URI = 'mysql://{}:{}@{}/{}'.format(
         MARIADB_USER, MARIADB_PASSWORD, MARIADB_HOST, MARIADB_DATABASE)
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_ECHO = False
     
-
-
 class ProductionConfig(Config):
     DEBUG = False
     DEVELOPMENT = False

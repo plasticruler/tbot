@@ -12,7 +12,7 @@
                             {{ message|safe }}                        
                     {% endfor %}
                     </div>
-        <form method="POST" action="/activation" class="col s12">
+        <form method="POST" action="{{url_for('auth.activation')}}" class="col s12">
             <div class="row">
                 <div class="col s6">
                     <input class="input-field" type="email" name="email" placeholder="Your Email" autofocus="">

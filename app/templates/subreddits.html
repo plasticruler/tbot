@@ -4,26 +4,24 @@
 
 {% block content %}    
 <form action="#">
+
     <table class="table">      
     <thead>
-        <th>Subreddit name</th>
-        
-        <th>Media</th>
-    </thead>
-    {%for r in subscriptions %}
         <tr>
-            <td>xx<td>
-            <td>xx<td>
-        </tr>            
-    {%endfor%}   
-    <tfooter>        
-        <tr>
-            <td>&nbsp;<td>
-            <td>&nbsp;<td>
-            <td><button class="btn right">Save</button></td>                                
+            <th>Subreddit name</th>        
+            <th>Media</th>
         </tr>
-    </tfooter>                       
+    </thead>
+    {%for r in reddits %}
+        <tr>
+            <td>{{r.value}}</td>
+            <td>{{r.key.name}}</td>
+        </tr>                
+    {%endfor%}       
+    <tr>
+        <td colspan="2">{{pagination.links}}</td>
+    </tr>
     </table>                       
     </div>
-    </form.
+    </form>
 {% endblock %}

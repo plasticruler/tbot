@@ -14,7 +14,7 @@ import random
 import datetime
 
 from app import db, log
-
+from app.base_models import BaseModel
 
     
 def generate_random_confirmation_code(length = 10):
@@ -25,27 +25,6 @@ def generate_random_confirmation_code(length = 10):
 tags = db.Table('tag_associations',
                 db.Column('tag_id', db.Integer, db.ForeignKey('tag.id')),
                 db.Column('bot_quote_id', db.Integer, db.ForeignKey('bot_quote.id')))
-
-
-class BaseModel(db.Model):
-    __abstract__ = True
-    id = db.Column(db.Integer, primary_key=True)
-    created_on = db.Column(db.DateTime, default=datetime.datetime.now)
-    is_active = db.Column(db.Boolean, default=True, nullable=False)
-    def delete(self):
-        try:
-            db.session.delete(self)
-            db.session.commit()
-        except SQLAlchemyError as e:
-            log.error(str(e))
-            db.session.rollback()
-    def save_to_db(self):
-        try:
-            db.session.add(self)
-            db.session.commit()
-        except SQLAlchemyError as e:
-            log.error(str(e))
-            db.session.rollback()
 
 
 class Tag(BaseModel):
@@ -119,14 +98,6 @@ class SelfLog(BaseModel):
     __tablename__ = 'log_self'
     chat_id = db.Column(db.Integer, nullable=False)
     message = db.Column(db.String(512))
-
-    @classmethod
-    def to_json(cls, x):
-        return {'content': x.message, 'chat_id': self.chat_id}
-
-    @classmethod
-    def return_all(cls):
-        return {'selflogs': list(map(lambda x: SelfLog.to_json(x), SelfLog.query.all()))}
 
     def __repr__(self):
         return "<SelfLog {}>".format(chat_id)
@@ -222,7 +193,7 @@ class EquityPriceSource(BaseModel):
 
 class Key(BaseModel):
     __tablename__ = 'key'
-    name = db.Column(db.String(20), nullable=False)
+    name = db.Column(db.String(20), nullable=False, unique=True)
 
     @classmethod
     def find_by_name(cls, name):
@@ -233,8 +204,9 @@ class Key(BaseModel):
 
 class KeyValueEntry(BaseModel):
     __tablename__ = 'keyvalue_entry'
+    __table_args__ = (db.UniqueConstraint('key_id','value',name='unique_key_value'),)
     key = db.relationship(
-        'Key', backref='value_entries', lazy=True)
+        'Key', backref='keyvalue_entry', lazy=True)
     key_id = db.Column(db.Integer, db.ForeignKey(
         'key.id'), nullable=False)
     value = db.Column(db.String(50), nullable=False)
@@ -255,6 +227,17 @@ class KeyValueEntry(BaseModel):
 
     def __repr__(self):
         return '<KeyValueEntry {}-{}>'.format(self.key.name, self.value)
+class ContentStats(BaseModel):
+    __tablename__ = 'content_stats'
+    user_id = db.Column(db.Integer(), db.ForeignKey('users.id'))
+    quote_id = db.Column(db.Integer(), db.ForeignKey('bot_quote.id'))
+
+    @classmethod
+    def add_statistic(cls, user, quote):
+        cs = ContentStatistics()
+        cs.user_id = user.id
+        cs.quote_id = quote.id
+        cs.save_to_db()
 
 class Role(BaseModel):
     __tablename__ = 'roles'
@@ -264,13 +247,16 @@ class UserRole(BaseModel):
     user_id = db.Column(db.Integer(), db.ForeignKey('users.id', ondelete='CASCADE'))
     roles_id = db.Column(db.Integer(), db.ForeignKey('roles.id', ondelete='CASCADE'))
 
+
 class UserSubscription(BaseModel):
     __tablename__ = 'user_subscriptions'
     user_id = db.Column(db.Integer(), db.ForeignKey('users.id', ondelete='CASCADE'))
     content_id = db.Column(db.Integer(), db.ForeignKey('keyvalue_entry.id'))
     content = db.relationship('KeyValueEntry', backref='user_subscriptions')
     user = db.relationship('User', backref='user_subscriptions')
-    
+    @classmethod
+    def get_by_id_for_user(cls, id, user_id):
+        return cls.query.filter(UserSubscription.user_id==user_id and UserSubscription.content_id==id)
     def __repr__(self):
         return "<UserSubscription user_id: {} content_id: {}".format(self.user_id, self.content_id)
     
@@ -286,9 +272,30 @@ class User(UserMixin, BaseModel):
     roles = db.relationship("Role", secondary="user_roles")
     confirmation_code = db.Column(db.String(10), default=generate_random_confirmation_code())
     chat_id = db.Column(db.Integer())
+    subscriptions_active = db.Column(db.Boolean, default=False)
+    last_seen_ip_address = db.Column(db.String(128))
 
     def __repr__(self):
         return "<User: {} {}>".format(self.id, self.email)
+    
+    def add_sub(self,sub):
+        kvn = sub.strip()
+        k = 'sr_media' #always assume it's media related        
+        key = Key.find_by_name(k)
+        if (key is None):
+            key = Key()
+            key.name = k
+            key.save_to_db()
+        kv = KeyValueEntry.find_by_key_value(k, kvn)
+        if kv is None:            
+            kv = KeyValueEntry()
+            kv.key = key
+            kv.value = kvn
+            kv.save_to_db()
+        sub = UserSubscription()
+        sub.user_id = self.id
+        sub.content_id = kv.id
+        sub.save_to_db()  
 
     @classmethod
     def find_by_email(cls, email):
