@@ -10,12 +10,16 @@
         <tr>
             <th>Subreddit name</th>        
             <th>Media</th>
+            <th>Items</th>
+            <th>&nbsp;</th>
         </tr>
     </thead>
     {%for r in reddits %}
         <tr>
             <td>{{r.value}}</td>
             <td>{{r.key.name}}</td>
+            <td>&nbsp;{{rc[r.value]}}</td>
+            <td><button id="btn_refresh_content" name="btn_refresh_content" onclick="updateSubRedditContent('{{r.value}}')" type="button" class="btn-small"><i class="material-icons left">file_download</i>Refresh</button></td>
         </tr>                
     {%endfor%}       
     <tr>

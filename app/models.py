@@ -36,6 +36,13 @@ class Tag(BaseModel):
         self.name = name
 
     @classmethod
+    def find_or_create_tag(cls, name):
+        t = Tag.query.filter(Tag.name == name).first()
+        if t is None:
+            t = Tag(name=name)
+        return t
+
+    @classmethod
     def find_by_name(cls, name):
         return cls.query.filter_by(name=name).first()
 
@@ -49,7 +56,6 @@ class Bot_Quote(BaseModel):
     @classmethod
     def return_random_by_tags(cls, tag_list):
         if tag_list is None or tag_list is []:
-            log.info('no tag list passed in')
             return return_random()
         rowCount = db.session.query(Bot_Quote).join(Tag, Bot_Quote.tags).filter(Tag.name.in_(tag_list)).count()
         return Bot_Quote.query.join(Tag, Bot_Quote.tags).filter(Bot_Quote.is_active == True, Tag.name.in_(tag_list)).offset(int(rowCount*random.random())).first()
@@ -59,11 +65,7 @@ class Bot_Quote(BaseModel):
         rowCount = cls.query.count()
         return cls.query.filter(Bot_Quote.is_active == True).offset(int(rowCount*random.random())).first()
 
-    def find_or_create_tag(self, name):
-        t = Tag.query.filter(Tag.name == name).first()
-        if t is None:
-            t = Tag(name=name)
-        return t
+    
 
     def __repr__(self):
         return '<Bot_Quote {}>'.format(self.text)
@@ -234,7 +236,7 @@ class ContentStats(BaseModel):
 
     @classmethod
     def add_statistic(cls, user, quote):
-        cs = ContentStatistics()
+        cs = ContentStats()
         cs.user_id = user.id
         cs.quote_id = quote.id
         cs.save_to_db()
@@ -256,13 +258,16 @@ class UserSubscription(BaseModel):
     user = db.relationship('User', backref='user_subscriptions')
     @classmethod
     def get_by_id_for_user(cls, id, user_id):
-        return cls.query.filter(UserSubscription.user_id==user_id and UserSubscription.content_id==id)
+        return UserSubscription.query.filter(UserSubscription.user_id==user_id and UserSubscription.content_id==id).first()
+    @classmethod
+    def get_by_user(cls, user_id):
+        return UserSubscription.query.filter(UserSubscription.user_id==user_id)
     def __repr__(self):
-        return "<UserSubscription user_id: {} content_id: {}".format(self.user_id, self.content_id)
+        return "<UserSubscription user_id: {} content_id: {}".format(self.user, self.content_id)
     
     @classmethod
     def get_by_user(cls, user_id):
-        return cls.query.filter(UserSubscription.user_id==user_id)
+        return UserSubscription.query.filter(UserSubscription.user_id==user_id)
 class User(UserMixin, BaseModel):
     __tablename__ = "users"
     email = db.Column(db.String(120), unique=True, nullable=False)

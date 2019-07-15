@@ -43,9 +43,6 @@ BOT_SECRET = app.config['BOT_SECRET']
 
 bot = telebot.TeleBot(BOT_API_KEY, threaded=False, skip_pending=True)
 
-
-
-
 # celery
 
 from app.celery_config import CeleryConfig
@@ -53,7 +50,6 @@ def make_celery(app):
     celery = Celery(app.import_name)
     celery.config_from_object(CeleryConfig)
     TaskBase = celery.Task
-
     class ContextTask(TaskBase):
         abstract = True
 

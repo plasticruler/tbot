@@ -245,7 +245,7 @@ def update_reddit_subs_from_title(subreddit, top_of='week', limit=50, prefix=Non
     prefix_ = "" if prefix is None else " ({})".format(prefix)
     for t in titles:
         bq = Bot_Quote(text="{}{}".format(t, prefix_))
-        bq.tags = [subreddit]
+        bq.tags = [Tag.find_or_create_tag(subreddit)]
         bq.save_to_db()
     send_system_notification(
         'Update for {} successful.'.format(subreddit), email=True)
@@ -253,16 +253,16 @@ def update_reddit_subs_from_title(subreddit, top_of='week', limit=50, prefix=Non
 
 
 @celery.task
-def update_reddit_subs_using_payload(subreddit, top_of='month', limit=50):
+def update_reddit_subs_using_payload(subreddit, top_of='month', limit=250):
     send_system_notification(
         'Starting full update for {}...'.format(subreddit), email=True)
     sr = reddit.subreddit(subreddit).top(top_of, limit=limit)
     posts = [{'id': post.id, 'title': post.title, 'selftext': post.selftext, 'url': post.url, 'media': post.media,
               'is_reddit_media_domain': post.is_reddit_media_domain, 'thumbnail': post.thumbnail, 'thumbnail_width': post.thumbnail_width,
-              'thumbnail_height': post.thumbnail_height} for post in sr if not post.stickied]
+              'thumbnail_height': post.thumbnail_height} for post in sr if not post.stickied]    
     for post in posts:
         bq = Bot_Quote(text=json.dumps(post))
-        bq.tags = [subreddit, '_fullpayload']
+        bq.tags = [Tag.find_or_create_tag(subreddit), Tag.find_or_create_tag('_fullpayload')]
         bq.save_to_db()
         # if '.jpg' in post['url']:
         #    save_file_name = DOWNLOAD_FOLDER + \

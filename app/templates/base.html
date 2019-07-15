@@ -77,16 +77,39 @@
     </script>
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
 
-    
-
     <script>
        $(document).ready(function(){
                  $('select')
                     .not('.disabled')
                     .formSelect();
+
                 $(".dropdown-trigger")
                     .dropdown();
+
+                $('#btn_sendrandom').bind("click", function(){
+                  axios.get('{{url_for("main.send_random")}}')
+                  .then(function(response){
+                      console.log(response);
+                  })
+                  .catch(function(error){
+                        console.log(error);
+                  })
+                });
             });    
+        function updateSubRedditContent(r){
+            var u = '{{url_for("main.refresh_content",r=dummy)}}';
+            u = u.substring(0,u.lastIndexOf('/')+1)+r;
+            axios.get(u,{
+            params:{
+                r:r
+            }})
+            .then(function(response){
+                console.log(response)
+            })
+            .catch(function(error){
+                console.log(error)
+            })
+        }
     </script>
 </body>
 </html>

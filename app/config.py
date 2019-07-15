@@ -3,9 +3,6 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv(verbose=True)
-
-print("bot host is '{}'".format(os.getenv('BOT_HOST')))
-
 class Config(object):
     CORS_ENABLED = True
     DEBUG = True
