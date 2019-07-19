@@ -22,6 +22,8 @@
     <li><a href="{{url_for('main.subreddits')}}">Subreddits</a></li>
     <li><a href="{{url_for('main.instruments')}}">Instruments</a></li>
     <li><a href="{{url_for('auth.users')}}">Users</a></li>
+    <li><a href="{{url_for('main.stats')}}">Stats</a></li>
+    <li><a href="{{url_for('main.system')}}">System</a></li>
 </ul>
 <nav class="light-blue lighten-1" role="navigation">
     <div class="nav-wrapper container"><a id="logo-container" href="#" class="brand-logo">tbot Administration</a>
@@ -39,7 +41,7 @@
                             </a></li>                            
                             
                             <li><a href="{{ url_for('auth.logout') }}" class="navbar-item">
-                                Logout
+                                Logout {{current_user.email}}                            
                             </a></li>
 
                             {%endif%}
@@ -54,7 +56,7 @@
                             {%endif%}
       </ul>
       <ul id="nav-mobile" class="sidenav">
-        <li><a href="#">Mobile links here</a></li>
+        <li><a href="#">Not yet</a></li>
       </ul>
       <a href="#" data-target="nav-mobile" class="sidenav-trigger"><i class="material-icons">menu</i></a>
     </div>
@@ -79,12 +81,7 @@
 
     <script>
        $(document).ready(function(){
-                 $('select')
-                    .not('.disabled')
-                    .formSelect();
-
-                $(".dropdown-trigger")
-                    .dropdown();
+                 
 
                 $('#btn_sendrandom').bind("click", function(){
                   axios.get('{{url_for("main.send_random")}}')
@@ -95,6 +92,43 @@
                         console.log(error);
                   })
                 });
+
+                $('#btn_send_test_message').bind("click", function(){
+                  axios.get('{{url_for("main.send_system_message")}}')
+                    .then(function(response){
+                        console.log(response)
+                    })
+                    .catch(function(error){
+                        console.log(error)
+                    })
+                });
+
+                $('#btn_send_activation_message').bind('click', function(){
+                    let valtype=$('#identifiertype').find(":selected").text()
+                    let identifier=$('#identifier').val()
+                    axios.get('{{url_for("main.resend_activation_email")}}',
+                    {
+                        params:{
+                            idtype:valtype,
+                            identifier:identifier
+                        }
+                    })
+                    .then(function(response){
+                        console.log(response)
+                    })
+                    .catch(function(error){
+                        console.log(error)
+                    })
+                });
+
+                $('select')
+                    .not('.disabled')
+                    .formSelect();
+
+                $(".dropdown-trigger")
+                    .dropdown();
+
+
             });    
         function updateSubRedditContent(r){
             var u = '{{url_for("main.refresh_content",r=dummy)}}';
@@ -110,6 +144,11 @@
                 console.log(error)
             })
         }
+
+        function sendSystemMessage(){            
+            
+        }
+
     </script>
 </body>
 </html>

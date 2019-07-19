@@ -12,27 +12,18 @@ import telebot
 import re
 
 from app import app, bot, log
-from app.models import Bot_Quote, SelfLog, EquityInstrument, User, generate_random_confirmation_code
+
+from app.main.models import Bot_Quote, SelfLog, EquityInstrument, User, generate_random_confirmation_code
 
 from app.tasks import download_youtube, send_system_notification, learn_face, recognise_face, save_inbound_message, send_email, send_random_quote, send_chart
 
-REDIS_SERVER = os.getenv('REDIS_SERVER')
-REDIS_PASSWORD = os.getenv('REDIS_PASSWORD')
-REDIS_PORT = os.getenv('REDIS_PORT')
-ADMIN_EMAIL = os.getenv('NOTIFICATIONS_RECIPIENT_EMAIL')
-BOT_API_KEY = os.getenv('BOT_API_KEY')
-BOT_SECRET = os.getenv('BOT_SECRET')
-ADMIN_EMAIL = os.getenv('NOTIFICATIONS_RECIPIENT_EMAIL')
-DOWNLOAD_FOLDER = os.getenv('DOWNLOAD_FOLDER')
-ADMIN_CHAT_ID = os.getenv('ADMIN_CHAT_ID')
+redis_instance = redis.Redis(host=app.config['REDIS_SERVER'], port=app.config['REDIS_PORT'],
+                             password=app.config['REDIS_PASSWORD'], charset='utf-8', decode_responses=True)
 
-redis_instance = redis.Redis(host=REDIS_SERVER, port=REDIS_PORT,
-                             password=REDIS_PASSWORD, charset='utf-8', decode_responses=True)
-
-authorised_usernames = os.getenv('AUTHORIZED_USERNAMES').split(',')
+authorised_usernames = app.config['FAMILY_GROUP'].split(',')
 
 #set up hook
-@app.route('/{}'.format(BOT_SECRET), methods=['POST'])
+@app.route('/{}'.format(app.config['BOT_SECRET']), methods=['POST'])
 def webhook():
     update = telebot.types.Update.de_json(
         request.stream.read().decode('utf-8'))
@@ -91,6 +82,29 @@ def addsub(message):
     if user is None:
         bot.send_message(chat_id, "It doesn't look like you've registered. Try /register and follow the prompts.")
         return
+
+def process_email_step(message):
+    try:
+        chat_id = message.chat.id
+        email = message.text
+        redis_key = "{}-register".format(chat_id)
+        process_and_save_response(redis_key, "email", email)
+        data = redis_instance.hgetall(redis_key)                
+        user = User.find_by_email(email)
+        if user is not None:
+            bot.send_message(chat_id, 'It looks like {} has already registered.'.format(email))
+            return
+        bot.send_message(chat_id, "Ok {}, I'll send a message to {} containing your confirmation code. Enter '/activate <activation_code>' here when you receive it.".format(get_key(redis_key, 'firstname'),
+                                                                                        get_key(redis_key, 'email')))
+        password = generate_random_confirmation_code(10)
+        new_user = User(email=email, password=User.generate_hash(password), chat_id = chat_id)        
+        new_user.save_to_db()
+        send_email.delay(email,"@DistractoBot activation code", "Your activation code is {}. Your password is {}. If this email was sent in error please ignore it.".format(new_user.confirmation_code, password))
+    except Exception as e:
+        log.error(str(e))
+        send_system_notification("[tbot] exception",str(e),email=True,send_to_bot=true)
+        
+
     
 def activate_account(message):
     chat_id = message.chat.id
@@ -105,6 +119,7 @@ def activate_account(message):
     if user.confirmation_code == registration_code:
         user.email_confirmed_at = datetime.datetime.now()
         user.active = True
+        user.subscriptions_active = True
         user.save_to_db()
         bot.send_message(chat_id, "Great, your account is activated! An email was sent to {}.".format(user.email))
         send_email(user.email, "@DistractoBot account details","Hi, Your account is available at {}. Your username is {}, and your password was sent to you previously. \n \nHave fun".format("https://zjremote.duckdns.org/bot/profile", user.email))
@@ -242,30 +257,6 @@ def get_photo_operation(message):
     except Exception as e:
         log.error(str(e))
         send_system_notification("[tbot] exception",str(e),email=True,send_to_bot=true)
-
-
-def process_email_step(message):
-    try:
-        chat_id = message.chat.id
-        email = message.text
-        redis_key = "{}-register".format(chat_id)
-        process_and_save_response(redis_key, "email", email)
-        data = redis_instance.hgetall(redis_key)                
-        user = User.find_by_email(email)
-        if user is not None:
-            bot.send_message(chat_id, 'It looks like {} has already registered.'.format(email))
-            return
-        bot.send_message(chat_id, "Ok {}, I'll send a message to {} containing your confirmation code. Enter '/activate <activation_code>' here when you receive it.".format(get_key(redis_key, 'firstname'),
-                                                                                        get_key(redis_key, 'email')))
-        password = generate_random_confirmation_code(10)
-        new_user = User(email=email, password=User.generate_hash(password), chat_id = chat_id)        
-        new_user.save_to_db()
-        send_email(email,"@DistractoBot activation code", "Your activation code is {}. Your password is {}. If this email was sent in error please ignore it.".format(new_user.confirmation_code, password))
-    except Exception as e:
-        log.error(str(e))
-        send_system_notification("[tbot] exception",str(e),email=True,send_to_bot=true)
-        
-
 
 def process_age_step(message):
     try:

@@ -1,0 +1,8 @@
+<!-- templates/stats.html -->
+
+{% extends "base.html" %}
+
+{% block content %}    
+<img src="{{url_for('main.plotbycontentcount', record_limit=10, user_id=current_user.id)}}"/>
+
+{% endblock %}

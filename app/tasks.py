@@ -16,7 +16,8 @@ import youtube_dl
 from youtube_dl.postprocessor.ffmpeg import FFmpegMetadataPP
 import datetime
 from app import app, bot, make_celery, log
-from app.models import ContentStats, User, Bot_MessageInbound, UserSubscription, Face, Tag, Bot_Quote, EquityPriceSource, EquityInstrument, EquityPrice
+from app.main.models import ContentStats, Bot_MessageInbound, UserSubscription, Tag, Bot_Quote, EquityPriceSource, EquityInstrument, EquityPrice
+from app.auth.models import User
 import telebot
 from app.rbot import reddit
 import uuid
@@ -27,22 +28,22 @@ from mp3_tagger import MP3File, VERSION_1, VERSION_2, VERSION_BOTH
 from app.utils import get_prices_from_sn_source
 import matplotlib.pyplot as plt
 
-TASK_NOTIFICATION_EMAIL = os.getenv('NOTIFICATIONS_RECIPIENT_EMAIL')
-GMAIL_PASSWORD = os.getenv('GMAIL_PASSWORD')
-GMAIL_ACCOUNT = os.getenv('GMAIL_ACCOUNT')
-FROM_ADDRESS = os.getenv('FROM_EMAIL')
-REDIS_SERVER = os.getenv('REDIS_SERVER')
-REDIS_PASSWORD = os.getenv('REDIS_PASSWORD')
-REDIS_PORT = os.getenv('REDIS_PORT')
-DOWNLOAD_FOLDER = os.getenv('DOWNLOAD_FOLDER')
-WEB_FOLDER = os.getenv('WEB_FOLDER')
-BOT_TOKEN = os.getenv('BOT_API_KEY')
-HOST_LOCATION = os.getenv('HOST_LOCATION')
-ADMIN_CHAT_ID = os.getenv('ADMIN_CHAT_ID')
+TASK_NOTIFICATION_EMAIL = app.config['NOTIFICATIONS_RECIPIENT_EMAIL']
+MAIL_PASSWORD = app.config['MAIL_PASSWORD']
+MAIL_USERNAME = app.config['MAIL_USERNAME']
+FROM_ADDRESS = os.getenv('MAIL_DEFAULT_SENDER')
+REDIS_SERVER = app.config['REDIS_SERVER']
+REDIS_PASSWORD = app.config['REDIS_PASSWORD']
+REDIS_PORT = app.config['REDIS_PORT']
+DOWNLOAD_FOLDER = app.config['DOWNLOAD_FOLDER']
+WEB_FOLDER = app.config['WEB_FOLDER']
+BOT_API_KEY = app.config['BOT_API_KEY']
+HOST_LOCATION = app.config['HOST_LOCATION']
+ADMIN_CHAT_ID = app.config['ADMIN_CHAT_ID']
 
 
 redis_instance = redis.Redis(
-    host=REDIS_SERVER, port=REDIS_PORT, password=REDIS_PASSWORD)
+    host=app.config['REDIS_SERVER'], port=app.config['REDIS_PORT'], password=app.config['REDIS_PASSWORD'])
 
 
 class IllegalArgumentError(ValueError):
@@ -117,26 +118,6 @@ def get_youtube_download_options():
 celery = make_celery(app)
 ##############################
 
-
-@celery.task
-def get_photo(chat_id, message_id, file_id, username):
-    file_ref = bot.get_file(file_id)
-    file_url = "https://api.telegram.org/file/bot{}/{}".format(
-        BOT_TOKEN, file_ref.file_path)
-    file_name = '{}/{}.jpg'.format(DOWNLOAD_FOLDER, uuid.uuid4().hex)
-    response = requests.get(file_url, allow_redirects=True, stream=True)
-    with open(file_name, 'wb') as handle:
-        for chunk in response.iter_content(chunk_size=512):
-            handle.write(chunk)
-    send_email.delay(TASK_NOTIFICATION_EMAIL, 'File download task completed',
-                     'Someone {} just uploaded a file {}'.format(username, file_name))
-    bot.reply_to(fakeMessage(chat_id, message_id),
-                 "Ok one moment while I scan your image.")
-    recognise_face.delay(chat_id, file_name)
-    redis_instance.set('{}-facialrecon'.format(chat_id), file_name)
-###########################################
-
-
 def fakeMessage(chat_id, message_id):
     class C:
         def __init__(self, chat_id):
@@ -148,47 +129,6 @@ def fakeMessage(chat_id, message_id):
             self.message_id = message_id
     return M(chat_id, message_id)
 ###########################################
-
-
-@celery.task
-def recognise_face(chat_id, file_name):
-    bot.send_message(
-        chat_id, 'Ok, please wait. Do not send another picture in the meantime.')
-    import face_recognition
-    faces = Face().query.all()
-    recognised_faces = []
-
-    for face in faces:
-        face_encoding = [float(x) for x in face.face_encoding.split('@')]
-        img = face_recognition.load_image_file(file_name)
-        target_encodings = face_recognition.face_encodings(img)
-        if len(target_encodings) > 0:
-            for target_encoding in target_encodings:
-                match_results = face_recognition.compare_faces(
-                    [face_encoding], target_encoding)
-                if match_results[0]:
-                    recognised_faces.append(face.person_name)
-    bot.send_message(chat_id, "Recognised {}".format(
-        ", ".join(recognised_faces) if len(recognised_faces) > 0 else "noburry."))
-    send_email.delay(TASK_NOTIFICATION_EMAIL, "Facial recon results",
-                     "In photo {} recognised {}".format(file_name, ", ".join(recognised_faces)))
-###########################################
-
-
-@celery.task
-def learn_face(chat_id, file_name, name):
-    import face_recognition
-    bot.send_message(chat_id, 'Face recognition starting...')
-    img = face_recognition.load_image_file(file_name)
-    clooney_encoding = face_recognition.face_encodings(img)[0]
-    face = Face()
-    face.person_name = name
-    face.face_encoding = "@".join([str(x) for x in clooney_encoding])
-    face.save_to_db()
-    bot.send_message(
-        chat_id, 'Facial parameters for {} saved to db.'.format(name))
-###########################################
-
 
 @celery.task
 def save_inbound_message(message):
@@ -328,7 +268,6 @@ def post_to_url(url, **kwargs):
         send_email.delay(TASK_NOTIFICATION_EMAIL,
                          'Post to url failed. {}'.format(url), e)
 ###########################################
-
 
 def download_exchange_rate_data():
     client = Client(app_id=os.getenv('OEXCHANGE_RATES_API_KEY'))
@@ -550,6 +489,6 @@ def send_email(to, subject, plaintextMessage, deletable=True):
         server.login(GMAIL_ACCOUNT, GMAIL_PASSWORD)
         server.sendmail(FROM_ADDRESS, TASK_NOTIFICATION_EMAIL, message)
         server.quit()
-        log.debug("Email '{}' to {} sent.".format(subject, to))
+        log.debug("Email with subject '{}' sent to {}.".format(subject, to))
     except Exception as e:
         log.error(e)

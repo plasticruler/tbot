@@ -1,0 +1,35 @@
+<!-- templates/admin.html -->
+
+{% extends "base.html" %}
+
+{% block content %}    
+<div class="row">
+    <div class="content">
+        <table class="table">
+            <tr>
+                <td>Send test message</td>
+                <td>
+                        <button name="btn_send_test_message" id="btn_send_test_message" class="btn">Send sytem message</button>                                
+                </td>
+            </tr>           
+            <tr>
+                <td>Send activation message</td>
+                <td>
+                        <div class="row">
+                            <input class="input-field" type="text" id="identifier" placeholder="identifier">
+                        </div>
+                        <div class="row">
+                            <select id="identifiertype">
+                                <option value="email">Email</option>
+                                <option value="chatid">Chat Id</option>
+                            </select>
+                        </div>
+                        <div class="row">
+                                <button name="btn_send_activation_message" id="btn_send_activation_message" class="btn">Resend activation</button>                                
+                        </div>
+                </td>
+            </tr>           
+        </table>
+    </div>
+</div>
+{% endblock %}

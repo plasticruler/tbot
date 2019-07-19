@@ -1,31 +1,31 @@
-# coding: utf-8
-from flask_sqlalchemy import SQLAlchemy
-from flask_login import UserMixin
-
-from sqlalchemy.ext.associationproxy import association_proxy
-from sqlalchemy.ext.declarative import declared_attr
-from sqlalchemy_utils import ArrowType, auto_delete_orphans
-from sqlalchemy.sql import func
-from sqlalchemy.orm import load_only, relationship
-from sqlalchemy.exc import SQLAlchemyError
-
-from passlib.hash import pbkdf2_sha256 as sha256
-import random
-import datetime
-
-from app import db, log
 from app.base_models import BaseModel
-
-    
-def generate_random_confirmation_code(length = 10):
-    letters = "ABCDEF23456789HJKMNPQRSTUVXYZp@es"
-    return ''.join((random.choice(letters) for i in range(length)))
+from app import db
 
 # https://stackoverflow.com/questions/21292726/how-to-properly-use-association-proxy-and-ordering-list-together-with-sqlalchemy
 tags = db.Table('tag_associations',
                 db.Column('tag_id', db.Integer, db.ForeignKey('tag.id')),
                 db.Column('bot_quote_id', db.Integer, db.ForeignKey('bot_quote.id')))
 
+class Bot_Quote(BaseModel):
+    __tablename__ = 'bot_quote'
+    tags = db.relationship('Tag', secondary=tags, backref='bot_quote')
+    text = db.Column(db.String(500))
+    content_hash = db.Column(db.String(128)) #the hash of the content item
+    
+    @classmethod
+    def return_random_by_tags(cls, tag_list):
+        if tag_list is None or tag_list is []:
+            return return_random()
+        rowCount = db.session.query(Bot_Quote).join(Tag, Bot_Quote.tags).filter(Tag.name.in_(tag_list)).count()
+        return Bot_Quote.query.join(Tag, Bot_Quote.tags).filter(Bot_Quote.is_active == True, Tag.name.in_(tag_list)).offset(int(rowCount*random.random())).first()
+    
+    @classmethod
+    def return_random(cls):        
+        rowCount = cls.query.count()
+        return cls.query.filter(Bot_Quote.is_active == True).offset(int(rowCount*random.random())).first()
+
+    def __repr__(self):
+        return '<Bot_Quote {}>'.format(self.text)
 
 class Tag(BaseModel):
     __tablename__ = 'tag'
@@ -46,55 +46,12 @@ class Tag(BaseModel):
     def find_by_name(cls, name):
         return cls.query.filter_by(name=name).first()
 
-
-class Bot_Quote(BaseModel):
-    __tablename__ = 'bot_quote'
-    tags = db.relationship('Tag', secondary=tags, backref='bot_quote')
-    text = db.Column(db.String(500))
-    content_hash = db.Column(db.String(128)) #the hash of the content item
-    
-    @classmethod
-    def return_random_by_tags(cls, tag_list):
-        if tag_list is None or tag_list is []:
-            return return_random()
-        rowCount = db.session.query(Bot_Quote).join(Tag, Bot_Quote.tags).filter(Tag.name.in_(tag_list)).count()
-        return Bot_Quote.query.join(Tag, Bot_Quote.tags).filter(Bot_Quote.is_active == True, Tag.name.in_(tag_list)).offset(int(rowCount*random.random())).first()
-    
-    @classmethod
-    def return_random(cls):        
-        rowCount = cls.query.count()
-        return cls.query.filter(Bot_Quote.is_active == True).offset(int(rowCount*random.random())).first()
-
-    
-
-    def __repr__(self):
-        return '<Bot_Quote {}>'.format(self.text)
-
-
 class Bot_MessageInbound(BaseModel):
     __tablename__ = 'messages_inbound'
     content = db.Column(db.String(2048))
 
     def __repr__(self):
         return '<Bot_MessageInbound {}>'.format(self.content)
-
-
-class Face(BaseModel):
-    __tablename__ = 'faces'
-    face_encoding = db.Column(db.String(5000))
-    person_name = db.Column(db.String(100))
-
-    def __repr__(self):
-        return '<Face {}>'.format(self.person_name)
-
-
-class ImageFile(BaseModel):
-    __tablename__ = 'image_file'
-    picture_file = db.Column(db.String(512))
-
-    def __repr__(self):
-        return '<ImageFile {}>'.format(self.picture_file)
-
 
 class SelfLog(BaseModel):
     __tablename__ = 'log_self'
@@ -119,26 +76,6 @@ class EquityInstrument(BaseModel):
 
     def __repr__(self):
         return '<EquityInstrument {} - {}>'.format(self.jse_code, self.company_name)
-
-
-class EquityPriceDTO:
-    def __init__(self, equityprice):
-        self.last_sales_price = equityPrice.last_sales_price
-        last_sales_price = equityprice.last_sales_price
-        buy_offer_price = equityprice.buy_offer_price
-        sell_offer_price = equityprice.sell_offer_price
-        last_sales_price = equityprice.last_sales_price
-        price_move = equityprice.price_move
-        volume_count = equityprice.volume_count
-        deal_count = equityprice.deal_count
-        deals_value = equityprice.deals_value
-        today_high = equityprice.today_high
-        today_low = equityprice.today_low
-        from_52_week_high = equityprice.from_52_week_high
-        from_52_week_low = equityprice.from_52_week_low
-        downloaded_timestamp = equityprice.downloaded_time_stamp
-        equitypricesource_id = equityprice.equitypricesource_id
-        equityinstrument_id = equityprice.equityinstrument_id
 
 
 class EquityPrice(BaseModel):
@@ -241,15 +178,6 @@ class ContentStats(BaseModel):
         cs.quote_id = quote.id
         cs.save_to_db()
 
-class Role(BaseModel):
-    __tablename__ = 'roles'
-    name = db.Column(db.String(30), unique=True)
-class UserRole(BaseModel):
-    __tablename__ = 'user_roles'
-    user_id = db.Column(db.Integer(), db.ForeignKey('users.id', ondelete='CASCADE'))
-    roles_id = db.Column(db.Integer(), db.ForeignKey('roles.id', ondelete='CASCADE'))
-
-
 class UserSubscription(BaseModel):
     __tablename__ = 'user_subscriptions'
     user_id = db.Column(db.Integer(), db.ForeignKey('users.id', ondelete='CASCADE'))
@@ -268,54 +196,3 @@ class UserSubscription(BaseModel):
     @classmethod
     def get_by_user(cls, user_id):
         return UserSubscription.query.filter(UserSubscription.user_id==user_id)
-class User(UserMixin, BaseModel):
-    __tablename__ = "users"
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    email_confirmed_at = db.Column(db.DateTime())
-    password = db.Column(db.String(120), nullable=False)
-    active = db.Column(db.Boolean, default=False, nullable=False)
-    roles = db.relationship("Role", secondary="user_roles")
-    confirmation_code = db.Column(db.String(10), default=generate_random_confirmation_code())
-    chat_id = db.Column(db.Integer())
-    subscriptions_active = db.Column(db.Boolean, default=False)
-    last_seen_ip_address = db.Column(db.String(128))
-
-    def __repr__(self):
-        return "<User: {} {}>".format(self.id, self.email)
-    
-    def add_sub(self,sub):
-        kvn = sub.strip()
-        k = 'sr_media' #always assume it's media related        
-        key = Key.find_by_name(k)
-        if (key is None):
-            key = Key()
-            key.name = k
-            key.save_to_db()
-        kv = KeyValueEntry.find_by_key_value(k, kvn)
-        if kv is None:            
-            kv = KeyValueEntry()
-            kv.key = key
-            kv.value = kvn
-            kv.save_to_db()
-        sub = UserSubscription()
-        sub.user_id = self.id
-        sub.content_id = kv.id
-        sub.save_to_db()  
-
-    @classmethod
-    def find_by_email(cls, email):
-        return cls.query.filter_by(email=email).first() 
-    @classmethod
-    def find_by_chatid(cls, chatid):
-        return cls.query.filter_by(chat_id=chatid).first() 
-
-    @staticmethod
-    def generate_hash(password):
-        return sha256.hash(password)
-
-    @staticmethod
-    def verify_hash(password, hash):
-        return sha256.verify(password, hash)
-
-# auto
-# auto_delete_orphans(Bot_Quote._tags)
