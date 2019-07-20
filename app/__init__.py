@@ -75,9 +75,10 @@ user_datastore = SQLAlchemyUserDatastore(db, User, Role)
 app.security = Security(app, user_datastore)
 
 #admin
+from app.auth.modelviews import SecurityModelView
 admin = Admin(app, name='tbot', template_mode='bootstrap3')
-admin.add_view(ModelView(User, db.session))
-admin.add_view(ModelView(Role, db.session))
+admin.add_view(SecurityModelView(User, db.session))
+admin.add_view(SecurityModelView(Role, db.session))
 
 @login_manager.user_loader
 def load_user(user_id):    

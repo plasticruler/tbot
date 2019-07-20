@@ -26,36 +26,39 @@ authorised_usernames = app.config['FAMILY_GROUP'].split(',')
 @app.route('/{}'.format(app.config['BOT_SECRET']), methods=['POST'])
 def webhook():
     update = telebot.types.Update.de_json(
-        request.stream.read().decode('utf-8'))
+        request.stream.read().decode('utf-8'))        
     bot.process_new_updates([update])
-    return 'ok'
-
+    return 'Ok'
 
 # BOT RELATED
 @bot.message_handler(commands=['help', 'start', 'convert', 'quote', '8ball', 'register', 'slog','chart','activate','addsub'])
 def send_welcome(message):
     save_inbound_message.delay(str(message))
     chat_id = message.chat.id    
-    if "/quote" in message.text:
+    if "/quote" in message.text and message.chat.type == "private":
         send_random_quote(chat_id)
-    elif '/addsub' in message.text:
-        pass
-    elif "/chart" in message.text:
+    elif '/addsub' in message.text message.chat.type == "private":
+        usr = User.find_by_chatid(chat_id)
+        if usr is not None:
+            pass
+        else:
+            bot.reply_to(message,"You're not registered.")
+    elif "/chart" in message.text and message.chat.type == "private":
         codes = message.text.split()
         code = 'STXNDQ'
         if len(codes) >= 2:
             code = codes[1]
         send_chart(code, chat_id)
-    elif "/register" in message.text:
+    elif "/register" in message.text and message.chat.type == "private":
         msg = bot.reply_to(message, "Ok {}, what is your email address?".format(message.from_user.first_name))
         bot.register_next_step_handler(msg, process_email_step)
         log.debug('nextstep registered')
         redis_key = "{}-register".format(chat_id)
         process_and_save_response(redis_key, "firstname", message.from_user.first_name)        
         log.debug('data logged to redis')
-    elif "/activate" in message.text:
+    elif "/activate" in message.text and message.chat.type == "private":
         activate_account(message)
-    elif "/slog" in message.text:
+    elif "/slog" in message.text and message.chat.type == "private":
         if message.chat.type == "private":
             sl = SelfLog()
             sl.chat_id = chat_id

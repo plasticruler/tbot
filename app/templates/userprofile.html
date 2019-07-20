@@ -1,0 +1,37 @@
+<!-- templates/profile.html -->
+
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+<div class="content">
+    
+<div class="card-panel col s12 z-depth-6">
+    <h1 class="title">
+        Viewing subscriptions for {{email_address}}
+    </h1>                
+</div>
+</div>
+<div class="row">
+<table class='table'>
+            <theader>
+                <tr>
+                    <th>
+                        Subscriptions
+                    </th>
+                    <th>&nbsp;</th>
+                </tr>
+            </theader>
+            {%for r in subscriptions%}
+            <tr>
+              <td>{{r.content.value}}</td> 
+              <td><a href="{{url_for('main.profile',id=[r.id])}}"><i class="material-icons red-text">delete</i></a></td> 
+            </tr>
+            {%endfor%}
+            
+        </table>
+</div>
+</div>
+
+
+{% endblock %}

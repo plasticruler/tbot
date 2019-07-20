@@ -29,8 +29,8 @@ from app.utils import get_prices_from_sn_source
 import matplotlib.pyplot as plt
 
 TASK_NOTIFICATION_EMAIL = app.config['NOTIFICATIONS_RECIPIENT_EMAIL']
-MAIL_PASSWORD = app.config['MAIL_PASSWORD']
 MAIL_USERNAME = app.config['MAIL_USERNAME']
+MAIL_PASSWORD = app.config['MAIL_PASSWORD']
 FROM_ADDRESS = os.getenv('MAIL_DEFAULT_SENDER')
 REDIS_SERVER = app.config['REDIS_SERVER']
 REDIS_PASSWORD = app.config['REDIS_PASSWORD']
@@ -432,8 +432,11 @@ def has_content_moved(url):  # ignore when you are redirected to reddit
 @celery.task
 def send_content_to_subscribers():
     activated_users = User.query.filter(User.active==True, User.chat_id.isnot(None), User.subscriptions_active==True)
-    for u in activated_users:        
-        send_random_quote(u.chat_id)
+    for u in activated_users: 
+        try:       
+            send_random_quote(u.chat_id)
+        except Exception as e:
+            send_bot_message(ADMIN_CHAT_ID, str(e))
 ###########################################
 @celery.task
 def send_uptime_message():
@@ -486,9 +489,9 @@ def send_email(to, subject, plaintextMessage, deletable=True):
         message = "Subject: {} \n\n {}".format(subject, plaintextMessage)
         server = smtplib.SMTP_SSL(smtp_server, port)
         server.ehlo()
-        server.login(GMAIL_ACCOUNT, GMAIL_PASSWORD)
+        server.login(MAIL_USERNAME, MAIL_PASSWORD)
         server.sendmail(FROM_ADDRESS, TASK_NOTIFICATION_EMAIL, message)
         server.quit()
         log.debug("Email with subject '{}' sent to {}.".format(subject, to))
     except Exception as e:
-        log.error(e)
+        log.error(e)    

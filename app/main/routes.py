@@ -139,11 +139,13 @@ def schedules():
 
 @main.route('/stats', methods=['GET'])
 @login_required
+@roles_required('admin')
 def stats():
     return render_template('stats.html')
 
 #select t.name, count(bq.id) from content_stats cs join bot_quote bq on bq.id=cs.quote_id join tag_associations ta on ta.bot_quote_id=bq.id join tag t on t.id=ta.tag_id where t.name not like '%\_%' and user_id=15 group by t.name order by count(bq.id) desc limit 10;
 @main.route('/plotcontent/<user_id>/<record_limit>', methods=['GET'])
+@roles_required('admin')
 @login_required
 def plotbycontentcount(user_id, record_limit):
     fig = create_figure(current_user.id, record_limit)

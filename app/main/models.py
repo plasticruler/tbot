@@ -12,6 +12,7 @@ class Bot_Quote(BaseModel):
     tags = db.relationship('Tag', secondary=tags, backref='bot_quote')
     text = db.Column(db.String(500))
     content_hash = db.Column(db.String(128)) #the hash of the content item
+    plugin_id = db.Column(db.Integer(), default=1)
     
     @classmethod
     def return_random_by_tags(cls, tag_list):
@@ -192,8 +193,4 @@ class UserSubscription(BaseModel):
     def get_by_user(cls, user_id):
         return UserSubscription.query.filter(UserSubscription.user_id==user_id)
     def __repr__(self):
-        return "<UserSubscription user_id: {} content_id: {}".format(self.user, self.content_id)
-    
-    @classmethod
-    def get_by_user(cls, user_id):
-        return UserSubscription.query.filter(UserSubscription.user_id==user_id)
+        return "{}".format(self.content.value)        
