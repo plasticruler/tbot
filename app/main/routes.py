@@ -24,6 +24,7 @@ def system():
     return render_template('admin.html')
 
 @main.route('/sendsystemmessage')
+@roles_required('admin')
 @login_required
 def send_system_message():
     send_system_notification("Test message subject", "Nothing to see here", True, True)
@@ -31,6 +32,7 @@ def send_system_message():
 
 @main.route('/resendactivationemail')
 @login_required
+@roles_required('admin')
 def resend_activation_email():
     identifier = request.args.get('identifier')
     identifier_type = request.args.get('idtype')
@@ -40,20 +42,23 @@ def resend_activation_email():
 
 
 @main.route('/refreshcontent/<r>', methods=['GET'])
+@roles_required('admin')
+@login_required
 def refresh_content(r='d'):
     if current_user.is_authenticated and current_user.is_active:
         update_reddit_subs_using_payload.delay(r,limit=500)
-        return make_response('Ok: '+ r,200)
+        return make_response('Ok: ', r,200)
     else:
-        return make_response('Auth required', 403)
+        return make_response('No', 403)
 
 @main.route('/sendrandom', methods=['GET'])
+@login_required
 def send_random():
     if current_user.is_authenticated and current_user.is_active:
         send_random_quote.delay(current_user.chat_id)
         return make_response('Ok',200)
     else:
-        return make_response('Auth required',403)
+        return make_response('Computer says no',403)
 
 
 @main.route('/profile', methods = ['GET','POST'])
@@ -99,6 +104,7 @@ def profile():
     return render_template('profile.html', subscriptions=subscriptions, email_address=current_user.email)
    
 @main.route('/subreddits', methods=['GET', 'POST'])
+@roles_required('admin')
 @login_required
 def subreddits():    
     reddits = None        
@@ -113,14 +119,10 @@ def subreddits():
 
     return render_template('subreddits.html', reddits=reddits)
 
-@main.route('/api/subreddits/<q>', methods=['GET'])
-def instruments_get(q):
-    reddits = KeyValueEntry.query.join(Key, KeyValueEntry.key).filter(Key.name.in_(['sr_media','sr_title'])).filter(KeyValueEntry.value.like('%{}%'.format(q))).order_by(KeyValueEntry.value)                
-    reddits = [r.value for r in reddits]
-    return jsonify(reddits)
 
 @main.route('/instruments', methods=['GET', 'POST'])
 @login_required
+@roles_required('admin')
 def instruments():    
     page, per_page, offset = get_page_args(page_parameter='page', per_page_parameter='per_page')      
     instruments = EquityInstrument.query.offset((page-1)*per_page).limit(per_page)        
@@ -131,6 +133,7 @@ def instruments():
     
 @main.route('/schedules', methods=['GET', 'POST'])
 @login_required
+@roles_required('admin')
 def schedules():
     return render_template('schedules.html')
 

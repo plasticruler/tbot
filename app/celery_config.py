@@ -27,7 +27,7 @@ class CeleryConfig(object):
     CELERYBEAT_SCHEDULE = {     
         'send_content_to_subscribers': {
             'task': 'app.tasks.send_content_to_subscribers',
-            'schedule': crontab(day_of_week="mon,tue,wed,thu,fri", minute="1", hour="6-20")
+            'schedule': crontab(day_of_week="mon,tue,wed,thu,fri,sat", minute="1", hour="6-18")
         },
         'download-share-data': {
             'task': 'app.tasks.download_share_prices',

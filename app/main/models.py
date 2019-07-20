@@ -1,5 +1,6 @@
 from app.base_models import BaseModel
 from app import db
+import random
 
 # https://stackoverflow.com/questions/21292726/how-to-properly-use-association-proxy-and-ordering-list-together-with-sqlalchemy
 tags = db.Table('tag_associations',

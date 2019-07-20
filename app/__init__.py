@@ -8,10 +8,11 @@ from flask_migrate import Migrate
 from flask.cli import with_appcontext
 from flask_login import LoginManager, user_logged_in
 
-from flask_admin import Admin
-from flask_admin.contrib.sqla import ModelView
 
 from celery import Celery
+
+from flask_admin import Admin
+from flask_admin.contrib.sqla import ModelView
 
 import logging
 import os
@@ -25,11 +26,10 @@ import telebot
 
 
 logging.basicConfig(level=logging.DEBUG)
-logging.getLogger('flask_cors').level = logging.DEBUG
 
 log = logging.getLogger(__name__)
 
-logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)
+#logging.getLogger('sqlalchemy.engine').setLevel(logging.DEBUG)
 
 app = Flask(__name__)
 
@@ -86,8 +86,7 @@ def load_user(user_id):
 
 @app.before_first_request
 def create_user():
-    db.create_all()    
-    #User.create_user("tumblr@a20.co.za", "password123", 770681524)      #shuaib   
+    db.create_all() 
 
 # cli click commands
 @app.cli.command()

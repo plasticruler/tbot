@@ -177,7 +177,7 @@ def download_youtube(chatid, url, arguments_as_dict):
 
 
 @celery.task
-def update_reddit_subs_from_title(subreddit, top_of='week', limit=50, prefix=None):
+def update_reddit_subs_from_title(subreddit, top_of='week', limit=500, prefix=None):
     send_system_notification(
         'Starting update for {}...'.format(subreddit), email=True)
     sr = reddit.subreddit(subreddit).top(top_of, limit=limit)
@@ -193,11 +193,11 @@ def update_reddit_subs_from_title(subreddit, top_of='week', limit=50, prefix=Non
 
 
 @celery.task
-def update_reddit_subs_using_payload(subreddit, top_of='month', limit=250):
+def update_reddit_subs_using_payload(subreddit, top_of='month', limit=500):
     send_system_notification(
         'Starting full update for {}...'.format(subreddit), email=True)
     sr = reddit.subreddit(subreddit).top(top_of, limit=limit)
-    posts = [{'id': post.id, 'title': post.title, 'selftext': post.selftext, 'url': post.url, 'media': post.media,
+    posts = [{'id': post.id, 'title': post.title, 'selftext': post.selftext, 'url': post.url, 'media': post.media, 'nsfw':post.over_18,
               'is_reddit_media_domain': post.is_reddit_media_domain, 'thumbnail': post.thumbnail, 'thumbnail_width': post.thumbnail_width,
               'thumbnail_height': post.thumbnail_height} for post in sr if not post.stickied]    
     for post in posts:

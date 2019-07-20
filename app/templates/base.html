@@ -22,8 +22,8 @@
     <li><a href="{{url_for('main.subreddits')}}">Subreddits</a></li>
     <li><a href="{{url_for('main.instruments')}}">Instruments</a></li>
     <li><a href="{{url_for('auth.users')}}">Users</a></li>
-    <li><a href="{{url_for('main.stats')}}">Stats</a></li>
-    <li><a href="{{url_for('main.system')}}">System</a></li>
+    <li><a href="{{url_for('main.stats')}}">Stats</a></li>    
+    <li><a href="{{url_for('main.system')}}">System</a></li>    
 </ul>
 <nav class="light-blue lighten-1" role="navigation">
     <div class="nav-wrapper container"><a id="logo-container" href="#" class="brand-logo">tbot Administration</a>
@@ -36,10 +36,11 @@
                             <li><a href="{{ url_for('main.profile') }}" class="navbar-item">
                                 Profile
                             </a></li>
+                            {%if current_user.has_role('admin')%}
                             <li><a class="dropdown-trigger" href="#!" data-target="admin_menu" class="navbar-item">
                                 Admin<i class="material-icons right">arrow_drop_down</i>
-                            </a></li>                            
-                            
+                            </a></li>                          
+                            {%endif%}                                      
                             <li><a href="{{ url_for('auth.logout') }}" class="navbar-item">
                                 Logout {{current_user.email}}                            
                             </a></li>
@@ -80,10 +81,9 @@
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
 
     <script>
-       $(document).ready(function(){
-                 
+       $(document).ready(function(){                                                
 
-                $('#btn_sendrandom').bind("click", function(){
+                $('#btn_send_random').bind("click", function(){
                   axios.get('{{url_for("main.send_random")}}')
                   .then(function(response){
                       console.log(response);
@@ -93,6 +93,7 @@
                   })
                 });
 
+                {%if current_user.has_role('admin')%}
                 $('#btn_send_test_message').bind("click", function(){
                   axios.get('{{url_for("main.send_system_message")}}')
                     .then(function(response){
@@ -120,6 +121,10 @@
                         console.log(error)
                     })
                 });
+                {%else%}                 
+                 //http://bfy.tw/NOqk
+                {%endif%}
+
 
                 $('select')
                     .not('.disabled')
@@ -130,6 +135,8 @@
 
 
             });    
+        
+        {%if current_user.has_role('admin')%}
         function updateSubRedditContent(r){
             var u = '{{url_for("main.refresh_content",r=dummy)}}';
             u = u.substring(0,u.lastIndexOf('/')+1)+r;
@@ -143,11 +150,8 @@
             .catch(function(error){
                 console.log(error)
             })
-        }
-
-        function sendSystemMessage(){            
-            
-        }
+        }        
+        {%endif%}
 
     </script>
 </body>
