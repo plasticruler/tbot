@@ -1,4 +1,4 @@
-from flask import Response, Blueprint, render_template, request, redirect, url_for,jsonify, make_response
+from flask import Response, Blueprint, render_template, request, redirect, url_for,jsonify, make_response, flash
 from flask_security import login_required, SQLAlchemySessionUserDatastore, current_user, roles_required
 from flask_paginate import Pagination, get_page_args
 from .models import EquityInstrument,  KeyValueEntry, Key, UserSubscription
@@ -35,9 +35,7 @@ def send_system_message():
 @roles_required('admin')
 def resend_activation_email():
     identifier = request.args.get('identifier')
-    identifier_type = request.args.get('idtype')
-    log.debug(identifier)
-    log.debug(identifier_type)
+    identifier_type = request.args.get('idtype')    
     return make_response('Ok', 200)
 
 
@@ -60,20 +58,26 @@ def send_random():
     else:
         return make_response('Computer says no',403)
 
+@main.route('/userprofile/<userid>')
+@login_required
+@roles_required('admin')
+def userprofile(userid):
+    usr = User.query.get(userid)
+    if usr is None:
+        flash('Invalid user.')
+        return redirect(url_for('auth.users'))
+    subscriptions = UserSubscription.get_by_user(userid)
+    return render_template('userprofile.html', user=usr, subscriptions=subscriptions)
 
 @main.route('/profile', methods = ['GET','POST'])
 @login_required
-def profile():
-    log.debug('profile view loaded')
+def profile():    
     if request.method == 'GET':
-        id_to_delete = request.args.get('id')
-        log.debug('id to delete: '+str(id_to_delete))
+        id_to_delete = request.args.get('id')        
         if id_to_delete is not None:
             sub_to_delete = UserSubscription.get_by_id_for_user(id_to_delete, current_user.id)
-            if sub_to_delete is not None:
-                log.debug('Going to delete ' + str(sub_to_delete.id))
-                sub_to_delete.delete()      
-                log.info('subscription deleted')
+            if sub_to_delete is not None:                
+                sub_to_delete.delete()                      
                 return redirect(url_for('main.profile'))                        
 
     #person enters the keyvalue_entry
@@ -98,8 +102,7 @@ def profile():
             sub = UserSubscription()
             sub.user_id = current_user.id
             sub.content_id = kv.id
-            sub.save_to_db()                  
-        return redirect(url_for('main.profile'))   
+            sub.save_to_db()                          
     subscriptions = UserSubscription.get_by_user(user_id=current_user.id)
     return render_template('profile.html', subscriptions=subscriptions, email_address=current_user.email)
    

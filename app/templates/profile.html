@@ -5,7 +5,14 @@
 {% block content %}
 <div class="row">
 <div class="content">
-    
+     <div class="box">
+                        {% with messages = get_flashed_messages() %}
+                    {% if messages %}
+                        <div class="notification is-danger">
+                            {{ messages[0] }}
+                        </div>
+                    {% endif %}
+                    {% endwith %}
 <div class="card-panel col s12 z-depth-6">
 <h1 class="title">
     Enter your subscriptions

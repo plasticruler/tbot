@@ -16,7 +16,7 @@
     </thead>
     {%for user in users %}
         <tr>
-            <td>{{user.email}}</td>
+            <td><a href="{{url_for('main.userprofile', userid=user.id)}}"> {{user.email}}</a></td>
             <td>{{user.confirmation_code}}</td>
             <td>{{user.is_active}}</td>
             <td>{{user.email_confirmed_at}}</td>
