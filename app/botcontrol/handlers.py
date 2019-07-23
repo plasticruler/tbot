@@ -13,31 +13,39 @@ import re
 
 from app import app, bot, log
 
-from app.main.models import Bot_Quote, SelfLog, EquityInstrument, User, generate_random_confirmation_code
+from app.main.models import Bot_Quote, SelfLog, EquityInstrument
+from app.auth.models import User
+from app.utils import generate_random_confirmation_code
 
-from app.tasks import download_youtube, send_system_notification, learn_face, recognise_face, save_inbound_message, send_email, send_random_quote, send_chart
+from app.tasks import download_youtube, send_system_notification, save_inbound_message, send_email, send_random_quote, send_chart
 
 redis_instance = redis.Redis(host=app.config['REDIS_SERVER'], port=app.config['REDIS_PORT'],
                              password=app.config['REDIS_PASSWORD'], charset='utf-8', decode_responses=True)
 
 authorised_usernames = app.config['FAMILY_GROUP'].split(',')
-
 #set up hook
-@app.route('/{}'.format(app.config['BOT_SECRET']), methods=['POST'])
-def webhook():
-    update = telebot.types.Update.de_json(
-        request.stream.read().decode('utf-8'))        
-    bot.process_new_updates([update])
-    return 'Ok'
+@app.route('/{}'.format(app.config['BOT_SECRET']), methods=['POST', 'GET'])
+def webhook():            
+    if request.method == 'POST':
+        if request.headers.get('content-type') == 'application/json':
+            json_string = request.get_data().decode('utf-8')
+            update = telebot.types.Update.de_json(json_string)            
+            bot.process_new_updates([update])
+            return ''
+        else:
+            flask.abort(403)
+            return 'Ok'
+    else:
+        return 'Ko'
 
 # BOT RELATED
-@bot.message_handler(commands=['help', 'start', 'convert', 'quote', '8ball', 'register', 'slog','chart','activate','addsub'])
+@bot.message_handler(commands=['help', 'domath','start', 'convert', 'quote', '8ball', 'register', 'slog','chart','activate','addsub'])
 def send_welcome(message):
     save_inbound_message.delay(str(message))
     chat_id = message.chat.id    
     if "/quote" in message.text and message.chat.type == "private":
         send_random_quote(chat_id)
-    elif '/addsub' in message.text message.chat.type == "private":
+    elif '/addsub' in message.text and message.chat.type == "private":
         usr = User.find_by_chatid(chat_id)
         if usr is not None:
             pass
@@ -49,6 +57,9 @@ def send_welcome(message):
         if len(codes) >= 2:
             code = codes[1]
         send_chart(code, chat_id)
+    elif "/domath" in message.text and message.chat.type == "private":
+        bot.reply_to(message, "What's the op? add or multiply?")
+        bot.register_next_step_handler_by_chat_id(chat_id, process_operator)
     elif "/register" in message.text and message.chat.type == "private":
         msg = bot.reply_to(message, "Ok {}, what is your email address?".format(message.from_user.first_name))
         bot.register_next_step_handler(msg, process_email_step)
@@ -79,6 +90,26 @@ def send_welcome(message):
     else:
         bot.send_message(message.chat.id, 'Ok {}. Go ahead.'.format(
             message.from_user.first_name))
+def process_operator(message):
+    chat_id = message.chat.id
+    redis_key = "{}-math".format(chat_id)
+    process_and_save_response(redis_key,"operator",message.text)
+    bot.send_message(chat_id, "Ok, what number must I do the operator to 4590?")
+    bot.register_next_step_handler_by_chat_id(chat_id, )
+    pass
+def process_answer(message):
+    chat_id = message.chat.id
+    redis_key = "{}-math".format(chat_id)
+    process_and_save_response(redis_key,"number", message.text)
+    n = get_key(redis_key,"number")
+    op = get_key(redis_key,"operator")
+    result = 0
+    if op=="add":
+        result = 4590 + int(n)
+    if op == "multiply":
+        result = 4590 * int(n)
+    bot.send_message(chat_id,"Answer is: {}", result)
+    pass
 def addsub(message):
     chat_id = message.chat.id
     user = User.find_by_chatid(chat_id)
@@ -102,9 +133,8 @@ def process_email_step(message):
         password = generate_random_confirmation_code(10)
         new_user = User(email=email, password=User.generate_hash(password), chat_id = chat_id)        
         new_user.save_to_db()
-        send_email.delay(email,"@DistractoBot activation code", "Your activation code is {}. Your password is {}. If this email was sent in error please ignore it.".format(new_user.confirmation_code, password))
-    except Exception as e:
-        log.error(str(e))
+        send_email.delay(email,"@GennieTheBot activation code", "Your activation code is {}. In a private message to the bot, please enter '/activate {}' to activate your account. Your password is {}. If this email was sent in error please ignore it.".format(new_user.confirmation_code,new_user.confirmation_code, password))
+    except Exception as e:        
         send_system_notification("[tbot] exception",str(e),email=True,send_to_bot=true)
         
 
@@ -190,76 +220,6 @@ def confirm_youtube_download(message):
 ########################
 
 
-@bot.message_handler(content_types=['photo'])
-def handle_photo(message):
-    if not message.chat.type == "private" or message.from_user.is_bot:
-        return
-    chat_id = message.chat.id
-    save_inbound_message.delay(str(message))
-    file_ref = bot.get_file(message.photo[-1].file_id)
-    file_url = "https://api.telegram.org/file/bot{}/{}".format(
-        BOT_API_KEY, file_ref.file_path)
-    file_name = "{}/{}.jpg".format(DOWNLOAD_FOLDER, uuid.uuid4().hex)
-    redis_instance.set("{}-fr-filename".format(chat_id), file_name)
-    response = requests.get(file_url, allow_redirects=True, stream=True)
-    username = message.from_user.username
-    bot.send_message(
-        ADMIN_CHAT_ID, "User {} is initiating a face operation.".format(username))
-    bot.forward_message(ADMIN_CHAT_ID, chat_id, message.message_id)
-    send_email.delay(
-        ADMIN_EMAIL, "User {} is using face RECON".format(username), "None")
-    with open(file_name, 'bw+') as handle:
-        for chunk in response.iter_content(chunk_size=512):
-            handle.write(chunk)
-    send_email.delay(ADMIN_EMAIL, "A photo has been uploaded",
-                     "{} just uploaded a file {}.".format(username, file_name))
-    markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
-    markup.add('Learn', 'Recognise', 'Do nothing')
-    msg = bot.reply_to(
-        message, "What would you like me to do with your photo?", reply_markup=markup)
-    bot.register_next_step_handler(msg, get_photo_processing_command)
-
-
-def get_photo_processing_command(message):
-    command = message.text
-    chat_id = message.chat.id
-    file_name = redis_instance.get("{}-fr-filename".format(chat_id))
-    if command not in ('Learn', 'Recognise'):
-        bot.send_message(chat_id, 'Ok, I will no nothing.')
-        return
-    if command == 'Recognise':
-        recognise_face.delay(chat_id, file_name)
-    else:
-        bot.send_message(ADMIN_CHAT_ID, "User {} has opted to do face recon on {}".format(
-            message.from_user.username, file_name))
-        msg = bot.reply_to(
-            message, "Ok, I'll use whatever you type next as the name of the first face I see.")
-        bot.register_next_step_handler(msg, get_face_name)
-
-
-def get_face_name(message):
-    face_name = message.text
-    chat_id = message.chat.id
-    file_name = redis_instance.get("{}-fr-filename".format(chat_id))
-    bot.reply_to(
-        message, "Ok I'll use the name {} to describe this face next time I see it".format(face_name))
-    learn_face.delay(chat_id, file_name, face_name)
-    bot.send_message(chat_id, "Your face learning task will begin now...")
-
-########################
-
-
-def get_photo_operation(message):
-    try:
-        chat_id = message.chat.id
-        markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
-        markup.add('Learn', 'Recognise', 'Do nothing')
-        msg = bot.reply_to(
-            message, 'I can try and recognise or learn faces in the photo. What should I do?', reply_markup=markup)
-        bot.register_next_step_handler(msg, process_photo_operation_step)
-    except Exception as e:
-        log.error(str(e))
-        send_system_notification("[tbot] exception",str(e),email=True,send_to_bot=true)
 
 def process_age_step(message):
     try:
@@ -362,5 +322,5 @@ def handle_text_message(message):
 
 
 bot.enable_save_next_step_handlers(
-    delay=1, filename='{}/step.save'.format(DOWNLOAD_FOLDER))
-bot.load_next_step_handlers(filename='{}/reply.save'.format(DOWNLOAD_FOLDER))
+    delay=1, filename='{}/step.save'.format(app.config['DOWNLOAD_FOLDER']))
+bot.load_next_step_handlers(filename='{}/reply.save'.format(app.config['DOWNLOAD_FOLDER']))

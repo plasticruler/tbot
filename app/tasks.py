@@ -1,13 +1,10 @@
-# coding: utf-8
 from __future__ import unicode_literals
-from __future__ import print_function
 
 import json
 from urllib import parse
 from urllib.parse import urlparse
 import redis
 import uuid
-import smtplib
 import os
 import glob
 import ssl
@@ -27,7 +24,10 @@ import re
 from mp3_tagger import MP3File, VERSION_1, VERSION_2, VERSION_BOTH
 from app.utils import get_prices_from_sn_source
 import matplotlib.pyplot as plt
+import traceback
 
+from flask_mail import Message, Mail
+from app import mail
 TASK_NOTIFICATION_EMAIL = app.config['NOTIFICATIONS_RECIPIENT_EMAIL']
 MAIL_USERNAME = app.config['MAIL_USERNAME']
 MAIL_PASSWORD = app.config['MAIL_PASSWORD']
@@ -40,6 +40,7 @@ WEB_FOLDER = app.config['WEB_FOLDER']
 BOT_API_KEY = app.config['BOT_API_KEY']
 HOST_LOCATION = app.config['HOST_LOCATION']
 ADMIN_CHAT_ID = app.config['ADMIN_CHAT_ID']
+MAIL_SENDER = app.config['MAIL_DEFAULT_SENDER']
 
 
 redis_instance = redis.Redis(
@@ -209,19 +210,19 @@ def update_reddit_subs_using_payload(subreddit, top_of='month', limit=500):
         #        get_filename_from_url(post['url'])
         #    download_file.delay(post['url'], save_file_name)
     send_system_notification(
-        'Full update for {} successful.'.format(subreddit), email=True)
+        'Full update for {} successful. {} items added.'.format(subreddit, len(posts)), email=True)
 ############################################
 
 
 @celery.task
-def update_multiple_reddit_subs_using_payload(subredditlist, top_of='month', limit=500):
+def update_multiple_reddit_subs_using_payload(subredditlist, top_of='week', limit=250):
     for subreddit in subredditlist.split(','):
         update_reddit_subs_using_payload.delay(subreddit, top_of, limit)
 ############################################
 
 
 @celery.task
-def update_multiple_reddit_subs_using_title(subredditlist, top_of='month', limit=500):
+def update_multiple_reddit_subs_using_title(subredditlist, top_of='week', limit=250):
     for subreddit in subredditlist.split(','):
         update_reddit_subs_from_title(
             subreddit, top_of, limit, prefix=subreddit)
@@ -331,24 +332,25 @@ def process_shareprice_data():
         dt = datetime.datetime.fromtimestamp(
             int(f.split('.')[0].split('/')[-1]))
         price_data = get_prices_from_sn_source(f)
-        equity_price = EquityPrice()
-        equity_price.buy_offer_price = price_data['buy_offer_price']
-        equity_price.downloaded_timestamp = dt
-        equity_price.deal_count = price_data['deal_count']
-        equity_price.from_52_week_high = price_data['from_52_week_high']
-        equity_price.from_52_week_low = price_data['from_52_week_low']
-        equity_price.price_move = price_data['price_move']
-        equity_price.last_sales_price = price_data['last_sales_price']
-        equity_price.sell_offer_price = price_data['sell_offer_price']
-        equity_price.today_high = price_data['today_high']
-        equity_price.today_low = price_data['today_low']
-        equity_price.volume_count = price_data['volume_count']
-        equity_price.deals_value = price_data['deals_value']
-        equity_price.equityinstrument = equity_instrument
-        equity_price.equityinstrument_id = equity_instrument.id
-        equity_price.equitypricesource_id = price_source.id
-        equity_price.equitypricesource = price_source
-        equity_price.save_to_db()
+        if price_data is not None:                        
+            equity_price = EquityPrice()
+            equity_price.buy_offer_price = price_data['buy_offer_price']
+            equity_price.downloaded_timestamp = dt
+            equity_price.deal_count = price_data['deal_count']
+            equity_price.from_52_week_high = price_data['from_52_week_high']
+            equity_price.from_52_week_low = price_data['from_52_week_low']
+            equity_price.price_move = price_data['price_move']
+            equity_price.last_sales_price = price_data['last_sales_price']
+            equity_price.sell_offer_price = price_data['sell_offer_price']
+            equity_price.today_high = price_data['today_high']
+            equity_price.today_low = price_data['today_low']
+            equity_price.volume_count = price_data['volume_count']
+            equity_price.deals_value = price_data['deals_value']
+            equity_price.equityinstrument = equity_instrument
+            equity_price.equityinstrument_id = equity_instrument.id
+            equity_price.equitypricesource_id = price_source.id
+            equity_price.equitypricesource = price_source
+            equity_price.save_to_db()
         os.remove(f)
         log.info('Processed file {}'.format(f))
 
@@ -412,9 +414,12 @@ def send_random_quote(chat_id):
                     url = payload['media']['reddit_video']['fallback_url']
         log.debug('Using url {}'.format(url))
         try:
-            log.debug('sending video')
-            bot.send_video(chat_id, url, caption="{} (https://reddit.com/{})".format(payload['title'], payload['id']))
-            ContentStats.add_statistic(user, quote)
+            log.debug('sending video')            
+            if ("nsfw" not in payload['title']):
+                bot.send_video(chat_id, url, caption="{} (https://reddit.com/{})".format(payload['title'], payload['id']))
+                ContentStats.add_statistic(user, quote)
+            else:
+                send_random_quote(chat_id)
         except telebot.apihelper.ApiException as e:          
             send_random_quote(chat_id)        
         return
@@ -431,12 +436,12 @@ def has_content_moved(url):  # ignore when you are redirected to reddit
 ###########################################
 @celery.task
 def send_content_to_subscribers():
-    activated_users = User.query.filter(User.active==True, User.chat_id.isnot(None), User.subscriptions_active==True)
-    for u in activated_users: 
+    active_chat_ids = [u.chat_id for u in User.query.filter(User.active==True, User.chat_id.isnot(None), User.subscriptions_active==True)]
+    for u in active_chat_ids: 
         try:       
-            send_random_quote(u.chat_id)
+            send_random_quote(u)
         except Exception as e:
-            send_bot_message(ADMIN_CHAT_ID, str(e))
+            send_bot_message(ADMIN_CHAT_ID, traceback.format_exc())
 ###########################################
 @celery.task
 def send_uptime_message():
@@ -479,19 +484,12 @@ def send_bot_message(chat_id, messageText):
 
 
 @celery.task
-def send_email(to, subject, plaintextMessage, deletable=True):
-    smtp_server = "smtp.gmail.com"
-    port = 465
-    context = ssl.create_default_context()
+def send_email(to, subject, plaintextMessage, deletable=True):    
     subject = "{}".format(subject + " <deletable>" if deletable else subject)
-    try:
+    try:        
         receiver_email = to
-        message = "Subject: {} \n\n {}".format(subject, plaintextMessage)
-        server = smtplib.SMTP_SSL(smtp_server, port)
-        server.ehlo()
-        server.login(MAIL_USERNAME, MAIL_PASSWORD)
-        server.sendmail(FROM_ADDRESS, TASK_NOTIFICATION_EMAIL, message)
-        server.quit()
+        message = "Subject: {} \n\n {}".format(subject, plaintextMessage)        
+        msg = mail.send_message(subject, body=plaintextMessage, sender=MAIL_SENDER, recipients=to.split(','))
         log.debug("Email with subject '{}' sent to {}.".format(subject, to))
     except Exception as e:
-        log.error(e)    
+        log.info(e)            

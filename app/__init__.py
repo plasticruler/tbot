@@ -13,6 +13,7 @@ from celery import Celery
 
 from flask_admin import Admin
 from flask_admin.contrib.sqla import ModelView
+from flask_mail import Mail
 
 import logging
 import os
@@ -39,7 +40,10 @@ db = SQLAlchemy(app)
 
 migrate = Migrate(app, db)
 
-bot = telebot.TeleBot(app.config['BOT_API_KEY'])
+bot = telebot.TeleBot(app.config['BOT_API_KEY'],threaded=False, skip_pending=True)
+
+#flask mail
+mail = Mail(app)
 
 # celery
 
@@ -50,7 +54,6 @@ def make_celery(app):
     TaskBase = celery.Task
     class ContextTask(TaskBase):
         abstract = True
-
         def __call__(self, *args, **kwargs):
             with app.app_context():
                 return TaskBase.__call__(self, *args, **kwargs)
@@ -74,11 +77,19 @@ from flask_security import Security, SQLAlchemyUserDatastore, login_required
 user_datastore = SQLAlchemyUserDatastore(db, User, Role)
 app.security = Security(app, user_datastore)
 
+
+
 #admin
 from app.auth.modelviews import SecurityModelView
 admin = Admin(app, name='tbot', template_mode='bootstrap3')
 admin.add_view(SecurityModelView(User, db.session))
 admin.add_view(SecurityModelView(Role, db.session))
+
+#tasks
+from app.tasks import process_shareprice_data
+
+#bot handlers
+from app.botcontrol import handlers
 
 @login_manager.user_loader
 def load_user(user_id):    
@@ -93,5 +104,5 @@ def create_user():
 @app.cli.command()
 @with_appcontext
 def processsharepricedata():
-    process_shareprice_data()
+    process_shareprice_data.delay()
 

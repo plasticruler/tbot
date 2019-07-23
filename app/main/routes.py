@@ -3,12 +3,12 @@ from flask_security import login_required, SQLAlchemySessionUserDatastore, curre
 from flask_paginate import Pagination, get_page_args
 from .models import EquityInstrument,  KeyValueEntry, Key, UserSubscription
 from app.auth.models import User
-from app.tasks import send_random_quote, update_reddit_subs_using_payload, send_system_notification
+from app.tasks import send_random_quote, update_reddit_subs_using_payload, send_system_notification, send_email
 from app import app, db, log, Config
 
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib.figure import Figure
-import io
+import io, timeago, datetime
 import telebot
 
 main = Blueprint('main', __name__)
@@ -45,7 +45,7 @@ def resend_activation_email():
 def refresh_content(r='d'):
     if current_user.is_authenticated and current_user.is_active:
         update_reddit_subs_using_payload.delay(r,limit=500)
-        return make_response('Ok: ', r,200)
+        return make_response('Ok',200)
     else:
         return make_response('No', 403)
 
@@ -83,26 +83,30 @@ def profile():
     #person enters the keyvalue_entry
     #which must be associated to a key (to get media type)
     if request.method == 'POST':
-        if not len(request.form.get('subreddit_name').strip())==0:            
-            usr = User.query.get(current_user.id)        
-            sub = request.form.get('subreddit_name').strip()
-            kvn = sub.strip()
-            k = 'sr_media' #always assume it's media related        
-            key = Key.find_by_name(k)
-            if (key is None):
-                key = Key()
-                key.name = k
-                key.save_to_db()
-            kv = KeyValueEntry.find_by_key_value(k, kvn)
-            if kv is None:            
-                kv = KeyValueEntry()
-                kv.key = key
-                kv.value = kvn
-                kv.save_to_db()
-            sub = UserSubscription()
-            sub.user_id = current_user.id
-            sub.content_id = kv.id
-            sub.save_to_db()                          
+        subs_count = UserSubscription.get_by_user(current_user.id).count()        
+        if subs_count >= 10 and not current_user.has_role('admin'):
+            flash('Sorry. Your account only allows for 10 subscriptions.')    
+        else:
+            if not len(request.form.get('subreddit_name').strip())==0:            
+                usr = User.query.get(current_user.id)        
+                sub = request.form.get('subreddit_name').strip()
+                kvn = sub.strip()
+                k = 'sr_media' #always assume it's media related        
+                key = Key.find_by_name(k)
+                if (key is None):
+                    key = Key()
+                    key.name = k
+                    key.save_to_db()
+                kv = KeyValueEntry.find_by_key_value(k, kvn)
+                if kv is None:            
+                    kv = KeyValueEntry()
+                    kv.key = key
+                    kv.value = kvn
+                    kv.save_to_db()
+                sub = UserSubscription()
+                sub.user_id = current_user.id
+                sub.content_id = kv.id
+                sub.save_to_db()                          
     subscriptions = UserSubscription.get_by_user(user_id=current_user.id)
     return render_template('profile.html', subscriptions=subscriptions, email_address=current_user.email)
    
@@ -110,12 +114,13 @@ def profile():
 @roles_required('admin')
 @login_required
 def subreddits():    
-    reddits = None        
-    if request.method == 'GET':        
+    reddits = None    
+    now = datetime.datetime.now() + datetime.timedelta(seconds = 60 * 3.4)    
+    if request.method == 'GET':  #we should cache these results      
         page, per_page, offset = get_page_args(page_parameter='page', per_page_parameter='per_page')            
         reddits = KeyValueEntry.query.join(Key, KeyValueEntry.key).filter(Key.name.in_(['sr_media','sr_title'])).order_by(KeyValueEntry.value).offset((page-1) * per_page).limit(per_page)        
-        reddit_content_count = db.engine.execute("select tag.name, count(*) from bot_quote join tag_associations on bot_quote_id=bot_quote.id join tag on tag.id=tag_associations.tag_id group by tag.name;")
-        reddit_content_count = dict(list(reddit_content_count))
+        reddit_content_count = db.engine.execute("select tag.name, count(*), max(bq.created_on) from bot_quote bq join tag_associations on bot_quote_id=bq.id join tag on tag.id=tag_associations.tag_id group by tag_id;")
+        reddit_content_count = {x[0]:{'count':x[1], 'last_updated':timeago.format(x[2], now)} for x in list(reddit_content_count)}        
         reddits_count = KeyValueEntry.query.join(Key, KeyValueEntry.key).filter(Key.name.in_(['sr_media','sr_title'])).count()        
         pagination = Pagination(page=page, per_page=per_page, total=reddits_count)
         return render_template('subreddits.html', reddits=reddits, page=page,per_page=per_page, pagination=pagination, rc=reddit_content_count)
@@ -145,6 +150,21 @@ def schedules():
 @roles_required('admin')
 def stats():
     return render_template('stats.html')
+
+@main.route('/resend_activation_code/<identifier>/<idval>')
+@roles_required('admin')
+@login_required
+def resend_activation_code(identifier, idval):
+    user = None
+    if identifier=="email":
+        user = User.find_by_email(idval)
+    if (identifier=="chatid"):
+        user = User.find_by_chatid(idval)    
+    if (user is not None):
+        send_email.delay(user.email,"@GennieTheBot activation code", "Your activation code is {}. In a private message to the bot, please enter '/activate {}' to activate your account. \n \n If this email was sent in error please ignore it.".format(user.confirmation_code,user.confirmation_code))
+        return make_response('Sent', 200)
+    else:
+        return make_response('User not found.', 200)
 
 #select t.name, count(bq.id) from content_stats cs join bot_quote bq on bq.id=cs.quote_id join tag_associations ta on ta.bot_quote_id=bq.id join tag t on t.id=ta.tag_id where t.name not like '%\_%' and user_id=15 group by t.name order by count(bq.id) desc limit 10;
 @main.route('/plotcontent/<user_id>/<record_limit>', methods=['GET'])
