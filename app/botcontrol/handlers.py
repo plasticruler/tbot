@@ -5,7 +5,7 @@ import random
 import re
 import uuid
 from urllib import parse
-from flask import request
+from flask import request, make_response
 
 import redis
 import telebot
@@ -18,11 +18,18 @@ from app.auth.models import User
 from app.utils import generate_random_confirmation_code
 
 from app.tasks import download_youtube, send_system_notification, save_inbound_message, send_email, send_random_quote, send_chart
+#new stuff
+import telegram
+new_bot = telegram.Bot(app.config['BOT_API_KEY'])
+##########
 
 redis_instance = redis.Redis(host=app.config['REDIS_SERVER'], port=app.config['REDIS_PORT'],
                              password=app.config['REDIS_PASSWORD'], charset='utf-8', decode_responses=True)
 
 authorised_usernames = app.config['FAMILY_GROUP'].split(',')
+
+   
+##########################################################################
 #set up hook
 @app.route('/{}'.format(app.config['BOT_SECRET']), methods=['POST', 'GET'])
 def webhook():            
@@ -90,6 +97,7 @@ def send_welcome(message):
     else:
         bot.send_message(message.chat.id, 'Ok {}. Go ahead.'.format(
             message.from_user.first_name))
+
 def process_operator(message):
     chat_id = message.chat.id
     redis_key = "{}-math".format(chat_id)
@@ -128,11 +136,17 @@ def process_email_step(message):
         if user is not None:
             bot.send_message(chat_id, 'It looks like {} has already registered.'.format(email))
             return
+        user = User.find_by_chatid(chat_id)
+        if user is not None:
+            bot.send_message(chat_id, 'It looks this chat has already registered.')
+            return
+
         bot.send_message(chat_id, "Ok {}, I'll send a message to {} containing your confirmation code. Enter '/activate <activation_code>' here when you receive it.".format(get_key(redis_key, 'firstname'),
                                                                                         get_key(redis_key, 'email')))
         password = generate_random_confirmation_code(10)
         new_user = User(email=email, password=User.generate_hash(password), chat_id = chat_id)        
         new_user.save_to_db()
+        send_system_notification.delay("new user","User {} has registered".format(email),True,True)
         send_email.delay(email,"@GennieTheBot activation code", "Your activation code is {}. In a private message to the bot, please enter '/activate {}' to activate your account. Your password is {}. If this email was sent in error please ignore it.".format(new_user.confirmation_code,new_user.confirmation_code, password))
     except Exception as e:        
         send_system_notification("[tbot] exception",str(e),email=True,send_to_bot=true)
@@ -197,10 +211,10 @@ def handle_convert_command(message):
         msg = bot.reply_to(
             message, "Do you want me to download and convert this video to mp3?", reply_markup=markup)
         # save to redis
-        bot.send_message(ADMIN_CHAT_ID, "User {} is trying to convert youtube file {}".format(
+        bot.send_message(app.config['ADMIN_CHAT_ID'], "User {} is trying to convert youtube file {}".format(
             message.from_user.username, yurl))
         save_args_to_redis("{}-youtube-download".format(message.chat.id), youtube_url=yurl, youtube_id=youtube_id, chat_id=message.chat.id,
-                           stamp=datetime.datetime.now().strftime('%s'), email=ADMIN_EMAIL, username=message.from_user.username)
+                           stamp=datetime.datetime.now().strftime('%s'), email=app.config['ADMIN_EMAIL'], username=message.from_user.username)
         bot.register_next_step_handler(msg, confirm_youtube_download)
     else:
         bot.send_message(
@@ -218,8 +232,6 @@ def confirm_youtube_download(message):
     else:
         bot.reply_to(message, 'Ok')
 ########################
-
-
 
 def process_age_step(message):
     try:
@@ -254,8 +266,6 @@ def process_gender_step(message):
     log.error(str(data))
     bot.send_message(chat_id, "Nice to meet you {}{}. You are a {} year old {}.".format(get_key(redis_key, 'firstname'),
                                                                                         get_key(redis_key, 'surname'), get_key(redis_key, 'age'), get_key(redis_key, 'gender')))
-
-
 def process_and_save_response(redis_key, key, value):
     if not redis_instance.exists(redis_key):
         redis_instance.hmset(
@@ -264,14 +274,11 @@ def process_and_save_response(redis_key, key, value):
     data[key] = value
     redis_instance.hmset(redis_key, data)
 
-
-def save_args_to_redis(redis_key, **kwargs):
-    redis_instance.set(redis_key, json.dumps(kwargs))
-
-
 def get_key(redis_key, key):
     return str(redis_instance.hget(redis_key, key))
 
+def save_args_to_redis(redis_key, **kwargs):
+    redis_instance.set(redis_key, json.dumps(kwargs))
 
 def get_photo_operation(message):
     try:

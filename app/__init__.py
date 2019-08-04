@@ -24,9 +24,13 @@ import matplotlib.pyplot as plt
 from app.config import Config
 import json
 import telebot
+import redis
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Bot
 
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 log = logging.getLogger(__name__)
 
@@ -41,9 +45,13 @@ db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
 bot = telebot.TeleBot(app.config['BOT_API_KEY'],threaded=False, skip_pending=True)
+distracto_bot = Bot(token=app.config['DISTRACTOBOT_API_KEY'])
 
 #flask mail
 mail = Mail(app)
+
+#redis
+redis_instance = redis.Redis(host=app.config['REDIS_SERVER'], port=app.config['REDIS_PORT'], password=app.config['REDIS_PASSWORD'])
 
 # celery
 
@@ -87,9 +95,11 @@ admin.add_view(SecurityModelView(Role, db.session))
 
 #tasks
 from app.tasks import process_shareprice_data
+from app.distractobottasks import send_content
 
 #bot handlers
 from app.botcontrol import handlers
+
 
 @login_manager.user_loader
 def load_user(user_id):    

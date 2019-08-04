@@ -1,23 +1,7 @@
 
-
-from app.main.models import Key, KeyValueEntry
+from app import app
 import os
 from celery.schedules import crontab
-
-
-def get_full_payload_reddits():
-    reddits = KeyValueEntry.get_by_key('sr_media')
-    if reddits is None:
-        reddits = []
-    return ",".join([x.value for x in reddits])
-
-
-def get_title_reddits():
-    reddits = KeyValueEntry.get_by_key('sr_title')
-    if reddits is None:
-        reddits = []
-    return ",".join([x.value for x in reddits])
-
 
 class CeleryConfig(object):
     CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND')
@@ -28,6 +12,10 @@ class CeleryConfig(object):
         'send_content_to_subscribers': {
             'task': 'app.tasks.send_content_to_subscribers',
             'schedule': crontab(day_of_week="mon,tue,wed,thu,fri,sat", minute="1", hour="6-18")
+        },
+        'send_to_subscribers_on_distractobot': {
+            'task': 'app.distractobottasks.send_content',
+            'schedule': crontab(minute="0")
         },
         'download-share-data': {
             'task': 'app.tasks.download_share_prices',

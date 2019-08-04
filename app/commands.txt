@@ -6,3 +6,16 @@ register - register for an account
 slog - send a personal message to yourself
 chart - /chart npn
 activate - activate your account
+
+
+---
+start
+register - register 
+activate - activate your account if you've suspended it
+suspend - :parking: temporarily suspend messages from this bot
+viewsubs - view your topics
+addsub - :grey_exclamation: not implemented yet!
+removesub - :grey_exclamation: not implemented yet!
+toadmin - :telephone: send message to admin
+updateemail - :envelope: update your registered email address
+sendnow - :smile: send a funny message now!

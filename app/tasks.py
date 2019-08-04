@@ -3,7 +3,6 @@ from __future__ import unicode_literals
 import json
 from urllib import parse
 from urllib.parse import urlparse
-import redis
 import uuid
 import os
 import glob
@@ -12,7 +11,7 @@ import requests
 import youtube_dl
 from youtube_dl.postprocessor.ffmpeg import FFmpegMetadataPP
 import datetime
-from app import app, bot, make_celery, log
+from app import app, bot, make_celery, log, redis_instance
 from app.main.models import ContentStats, Bot_MessageInbound, UserSubscription, Tag, Bot_Quote, EquityPriceSource, EquityInstrument, EquityPrice
 from app.auth.models import User
 import telebot
@@ -25,6 +24,7 @@ from mp3_tagger import MP3File, VERSION_1, VERSION_2, VERSION_BOTH
 from app.utils import get_prices_from_sn_source
 import matplotlib.pyplot as plt
 import traceback
+
 
 from flask_mail import Message, Mail
 from app import mail
@@ -42,9 +42,7 @@ HOST_LOCATION = app.config['HOST_LOCATION']
 ADMIN_CHAT_ID = app.config['ADMIN_CHAT_ID']
 MAIL_SENDER = app.config['MAIL_DEFAULT_SENDER']
 
-
-redis_instance = redis.Redis(
-    host=app.config['REDIS_SERVER'], port=app.config['REDIS_PORT'], password=app.config['REDIS_PASSWORD'])
+celery = make_celery(app)
 
 
 class IllegalArgumentError(ValueError):
@@ -441,7 +439,7 @@ def send_content_to_subscribers():
         try:       
             send_random_quote(u)
         except Exception as e:
-            send_bot_message(ADMIN_CHAT_ID, traceback.format_exc())
+            log.debug(traceback.format_exc())            
 ###########################################
 @celery.task
 def send_uptime_message():
@@ -492,4 +490,4 @@ def send_email(to, subject, plaintextMessage, deletable=True):
         msg = mail.send_message(subject, body=plaintextMessage, sender=MAIL_SENDER, recipients=to.split(','))
         log.debug("Email with subject '{}' sent to {}.".format(subject, to))
     except Exception as e:
-        log.info(e)            
+        log.debug(e)            

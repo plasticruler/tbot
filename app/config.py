@@ -15,6 +15,7 @@ class Config(object):
     BOT_API_KEY = os.getenv('BOT_API_KEY')
     BOT_SECRET = os.getenv('BOT_SECRET')
     BOT_HOST = os.getenv('BOT_HOST').format(BOT_SECRET)
+    DISTRACTOBOT_API_KEY = os.getenv('DISTRACTOBOT_API_KEY')
     MARIADB_HOST = os.getenv('MARIADB_HOST')
     MARIADB_USER = os.getenv('MARIADB_USER')
     MARIADB_PASSWORD = os.getenv('MARIADB_PASSWORD')

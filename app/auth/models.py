@@ -25,10 +25,12 @@ class User(BaseModel, UserMixin):
     active = db.Column(db.Boolean, default=False, nullable=False)
     roles = db.relationship('Role', secondary=roles_users, backref=db.backref('users', lazy='dynamic'))
     confirmation_code = db.Column(db.String(10), default=generate_random_confirmation_code())
-    chat_id = db.Column(db.Integer())
+    chat_id = db.Column(db.Integer(), unique=True)
     subscriptions_active = db.Column(db.Boolean, default=False)
     last_seen_ip_address = db.Column(db.String(128))
     note = db.Column(db.String(200))
+    utc_offset = db.Column(db.Integer())
+    bot_id = db.Column(db.Integer(), default=1, nullable=False)
 
     def __repr__(self):
         return "<User: {} {}>".format(self.id, self.email)        
