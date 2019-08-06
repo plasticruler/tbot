@@ -42,6 +42,10 @@ class User(BaseModel, UserMixin):
     @classmethod
     def find_by_chatid(cls, chatid):
         return cls.query.filter_by(chat_id=chatid).first() 
+    
+    @classmethod
+    def exists(cls,**kwargs):
+        return cls.query.filter_by(**kwargs).count()==1
 
     @staticmethod
     def generate_hash(password):
