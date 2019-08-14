@@ -34,12 +34,14 @@
                         Subscriptions
                     </th>
                     <th>&nbsp;</th>
+                    <th>&nbsp;</th>
                 </tr>
             </theader>
             {%for r in subscriptions%}
             <tr>
-              <td>{{r.content.value}}</td> 
+              <td>{{r.content.value}}</td>
               <td><a href="{{url_for('main.profile',id=[r.id])}}"><i class="material-icons red-text">delete</i></a></td> 
+              <td><a href="{{url_for('main.profile',id=[r.id])}}"><i class="material-icons green-text">email</i></a></td> 
             </tr>
             {%endfor%}
             

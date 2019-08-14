@@ -3,8 +3,9 @@ from flask_security import login_required, SQLAlchemySessionUserDatastore, curre
 from flask_paginate import Pagination, get_page_args
 from .models import EquityInstrument,  KeyValueEntry, Key, UserSubscription
 from app.auth.models import User
-from app.tasks import send_random_quote, update_reddit_subs_using_payload, send_system_notification, send_email
-from app import app, db, log, Config
+from app.tasks import update_reddit_subs_using_payload, send_system_notification, send_email
+from app.distractobottasks import send_random_quote
+from app import app, db, log, Config #, cache
 
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -58,6 +59,17 @@ def send_random():
     else:
         return make_response('Computer says no',403)
 
+@main.route('/sendrandom_bytag', methods=['GET'])
+@login_required
+def send_random_by_tag():    
+    id = request.args.get('id')
+    sub = UserSubscription.get_by_id_for_user(id,current_user.id)
+    if current_user.is_authenticated and current_user.is_active and sub:        
+        send_random_quote.delay(current_user.chat_id,str(sub))
+        return make_response('Ok',200)
+    else:
+        return make_response('Computer says no',403)    
+
 @main.route('/userprofile/<userid>')
 @login_required
 @roles_required('admin')
@@ -69,17 +81,20 @@ def userprofile(userid):
     subscriptions = UserSubscription.get_by_user(userid)
     return render_template('userprofile.html', user=usr, subscriptions=subscriptions)
 
+@main.route('/delete', methods = ['GET'])
+@login_required
+def delete():
+    if request.method == 'GET':        
+        id_to_delete = request.args.get('id')                
+        if id_to_delete:
+            sub_to_delete = UserSubscription.query.filter(UserSubscription.id==id_to_delete, UserSubscription.user_id==current_user.id)
+            if sub_to_delete:                                
+                sub_to_delete.delete()                                      
+    return redirect(url_for('main.profile'))                        
+    
 @main.route('/profile', methods = ['GET','POST'])
 @login_required
-def profile():    
-    if request.method == 'GET':
-        id_to_delete = request.args.get('id')        
-        if id_to_delete is not None:
-            sub_to_delete = UserSubscription.get_by_id_for_user(id_to_delete, current_user.id)
-            if sub_to_delete is not None:                
-                sub_to_delete.delete()                      
-                return redirect(url_for('main.profile'))                        
-
+def profile():        
     #person enters the keyvalue_entry
     #which must be associated to a key (to get media type)
     if request.method == 'POST':
@@ -117,7 +132,7 @@ def subreddits():
     reddits = None    
     now = datetime.datetime.now() + datetime.timedelta(seconds = 60 * 3.4)    
     if request.method == 'GET':  #we should cache these results      
-        page, per_page, offset = get_page_args(page_parameter='page', per_page_parameter='per_page')            
+        page, per_page, offset = get_page_args(page_parameter='page', per_page_parameter='per_page')                    
         reddits = KeyValueEntry.query.join(Key, KeyValueEntry.key).filter(Key.name.in_(['sr_media','sr_title'])).order_by(KeyValueEntry.value).offset((page-1) * per_page).limit(per_page)        
         reddit_content_count = db.engine.execute("select tag.name, count(*), max(bq.created_on) from bot_quote bq join tag_associations on bot_quote_id=bq.id join tag on tag.id=tag_associations.tag_id group by tag_id;")
         reddit_content_count = {x[0]:{'count':x[1], 'last_updated':timeago.format(x[2], now)} for x in list(reddit_content_count)}        

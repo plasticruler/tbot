@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 from telegram.ext import Updater, CommandHandler, MessageHandler, RegexHandler
-from telegram.ext import ConversationHandler, CallbackQueryHandler, Filters
+from telegram.ext import ConversationHandler, CallbackQueryHandler, Filters, InlineQueryHandler,ChosenInlineResultHandler
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, ChatAction
+from telegram import  InlineQueryResultArticle, ParseMode, InputTextMessageContent
 import requests
 import re
 import datetime
@@ -11,12 +12,14 @@ import json
 from app import app, log
 from app import redis_instance, make_celery, distracto_bot
 from app.auth.models import User, Role
-from app.main.models import UserSubscription, ContentStats, Bot_Quote
+from app.main.models import UserSubscription, ContentStats, Bot_Quote, KeyValueEntry
 from app.utils import generate_random_confirmation_code
 from app.distractobottasks import send_random_quote, send_email
+from app.tasks import update_reddit_subs_using_payload
 from functools import wraps
 import traceback
 import random
+from uuid import uuid4
 from emoji import emojize
 
 EMAIL_REGEX = "^([a-zA-Z0-9_\-\.]+)@([a-zA-Z0-9_\-\.]+)\.([a-zA-Z]{2,5})$"
@@ -179,8 +182,14 @@ def update_email(update, context):
                 update.message.reply_text("You need to register first. Send /register")
 
 @send_typing_action
-def add_subscription(update, context):
+def add_subscription(update, context):    
     update.message.reply_text(emojize("Not implemented yet but stay tuned! Sign up for email announcements? Send /updateemail"))
+
+@role_required("admin")
+@send_typing_action
+def trigger_update(update, context):
+    subreddit = update.message.text
+    update_reddit_subs_using_payload.delay(subreddit, "week", 500)
 
 @send_typing_action
 def view_status(update, context):        
@@ -212,19 +221,15 @@ def shift_time(update, context):
             user.save_to_db()
             update.message.reply_text("Ok, your time offset has been updated to UTC {}".format(user.utc_offset))
         except ValueError:            
-            update.message.reply_text("Oops, enter a number in the form 2, -2 or +11 and between -12 and +14")
-
-def posttype(update,context):
-    reply_markup = telegram.ReplyKeyboardRemove()
-    if update.message.text == 'NSFW':
-        nsfw_posts(update, context)
-    elif update.message.text == 'SFW':
-        sfw_posts(update, context)
-
+            update.message.reply_text("Oops, enter a number in the form 2, -2 or +11 and between -12 and +14")  
 
 @send_typing_action
 def about(update, context):
     update.message.reply_text("This bot sends you one item of top-rated reddit content every hour. Use it to break out of a rut. Or watch this video I recommend! https://www.youtube.com/watch?v=XVbH_TkJW9s Need to contact its creator? Send /toadmin <your message here>", disable_web_page_preview=True)
+
+@send_typing_action
+def help(update, context):
+    update.message.reply_text("Type @distractobot <subredditname> to get a list of available subs.")
 
 @send_typing_action
 def cause_error(update, context):
@@ -240,10 +245,8 @@ def create_activated_user(chat_id, context, email=None, note=None):
     if User.exists(chat_id=chat_id):
         context.bot.send_message(chat_id=chat_id, text="It looks like you're already registered.")
         return
-    usr = User.find_by_chatid(chat_id)
-    log.info("email entered: {}".format(email))
-    new_user = User(password=User.generate_hash(
-        generate_random_confirmation_code(10)), chat_id=chat_id)
+    usr = User.find_by_chatid(chat_id)    
+    new_user = User(password=User.generate_hash("{}dp".format(chat_id)), chat_id=chat_id)
     new_user.chat_id = chat_id
     new_user.bot_id = 1
     new_user.email = email if email is not None else "{}@null".format(chat_id)
@@ -259,12 +262,30 @@ def create_activated_user(chat_id, context, email=None, note=None):
         usb.content_id = int(content_id)
         usb.save_to_db()
     send_system_message("New account created! {} Email: '{}'".format(chat_id, new_user.email), True)
-    context.bot.send_message(chat_id=chat_id, text="Ok, your account has been created and some default topics have been added. View them by sending /viewsubs")
+    context.bot.send_message(chat_id=chat_id, text="Ok, your account has been created and some default topics have been added. View them by sending /viewsubs If you want to view all available topics enter '@DistractoBot <search>'")
     context.bot.send_message(chat_id=chat_id, text="And, to suspend your subscription just send /unsubscribe")
 
+def selectResult(update, context):
+    query = update.chosen_inline_result    
+    cid =query.to_dict()["from"]["id"]        
+    context.bot.send_message(chat_id=cid, text="You selected {}".format(query.result_id))    
+    send_random_quote.delay(cid, query.result_id)
+
+def inlinequery(update, context):
+    query = update.inline_query.query        
+    values = [value for value in get_key("SYSTEM_CACHE","reddits_list").split(",") if query in value]    
+    results = [InlineQueryResultArticle(
+        id = v,
+        title=v,
+        input_message_content=InputTextMessageContent(v)) for v in values]  
+    update.inline_query.answer(results)
+
 #################################################################################
-@send_typing_action
+
 def error_callback(update, context):    
+    if context.error == "Results_too_much":
+        send_system_message(err, to_bot=False, also_email=True)    
+        return
     log.error("Update {} caused error {}".format(update, context.error))    
     send_system_message(context.error, to_bot=True)
     err = traceback.format_exc()
@@ -323,7 +344,12 @@ def main():
     dp.add_handler(CommandHandler('activate', activate))
     dp.add_handler(CommandHandler('error', cause_error))
     dp.add_handler(CommandHandler('addsub', add_subscription))
+    dp.add_handler(CommandHandler('updatesub',trigger_update))
     dp.add_handler(CommandHandler('about', about))
+    dp.add_handler(CommandHandler('help', help))
+    dp.add_handler(InlineQueryHandler(inlinequery))
+
+    dp.add_handler(ChosenInlineResultHandler(selectResult))
 
     registrationConversation = ConversationHandler(
         entry_points=[CommandHandler('register', start_registration)],
@@ -341,6 +367,9 @@ def main():
     # set redis cache
     # get_key("SYSTEM_FLASH","default_subs").split(',')
     process_and_save_response("SYSTEM_CACHE", "default_subs", "179,175,167,137,177,155,213,178,173,181,193,166")
+    values = KeyValueEntry.query.all()   #read this from redis
+    values = [v.value for v in values]    
+    process_and_save_response("SYSTEM_CACHE","reddits_list", ",".join(values))
     updater.start_polling()
     log.info('Polling started')
     updater.idle()

@@ -26,6 +26,7 @@ import json
 import telebot
 import redis
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Bot
+#from flask_caching import Cache
 
 
 logging.basicConfig(
@@ -49,6 +50,10 @@ distracto_bot = Bot(token=app.config['DISTRACTOBOT_API_KEY'])
 
 #flask mail
 mail = Mail(app)
+
+#cache
+
+#cache = Cache(app)
 
 #redis
 redis_instance = redis.Redis(host=app.config['REDIS_SERVER'], port=app.config['REDIS_PORT'], password=app.config['REDIS_PASSWORD'])

@@ -188,9 +188,9 @@ class UserSubscription(BaseModel):
     user = db.relationship('User', backref='user_subscriptions')
     @classmethod
     def get_by_id_for_user(cls, id, user_id):
-        return UserSubscription.query.filter(UserSubscription.user_id==user_id and UserSubscription.content_id==id).first()
+        return UserSubscription.query.filter_by(id=id).filter_by(user_id=user_id).first()
     @classmethod
     def get_by_user(cls, user_id):
-        return UserSubscription.query.filter(UserSubscription.user_id==user_id)
+        return UserSubscription.query.join(KeyValueEntry).filter(UserSubscription.user_id==user_id).order_by(KeyValueEntry.value)
     def __repr__(self):
         return "{}".format(self.content.value)        

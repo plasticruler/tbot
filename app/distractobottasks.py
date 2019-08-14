@@ -8,6 +8,7 @@ from app.main.models import ContentStats, UserSubscription, Tag, Bot_Quote
 from app.auth.models import User
 from app.tasks import send_email
 import time
+import random
 import datetime
 import re
 import traceback
@@ -35,13 +36,32 @@ def send_email(to, subject, plaintextMessage, deletable=True):
     except Exception as e:
         log.debug(e)            
 
+def has_system_broadcast(chat_id):
+    if random.random() < 0.006: #once every 158 requests
+        return 
+    return False
+
+def send_advert(chat_id):
+    return
+
+def send_system_announcement():
+    return
+
 @celery.task
-def send_random_quote(chat_id):
+def send_random_quote(chat_id, tag=None):
     # based on the chat_id, we need to get a random quote from users subscribed items
     user = User.find_by_chatid(chat_id)    
+    if has_system_broadcast(chat_id):
+
+        return
+    taglist=['adviceanimals','bettereveryloop','todayilearned']
     # get user subscriptions
-    subs = UserSubscription.get_by_user(user.id)
-    taglist = [t.content.value for t in subs]
+    if tag:
+        log.info('received tag -- : {}'.format(tag))
+        taglist=[tag]
+    else:
+        subs = UserSubscription.get_by_user(user.id)    
+        taglist = [t.content.value for t in subs]    
     quote = Bot_Quote.return_random_by_tags(taglist)    
     if quote is None and user is not None:
         distracto_bot.send_message(chat_id=chat_id, text="You have no subscriptions. Are you registered?")

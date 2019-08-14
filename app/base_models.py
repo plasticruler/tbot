@@ -11,8 +11,7 @@ class BaseModel(db.Model):
     def delete(self):
         try:
             db.session.delete(self)
-            db.session.commit()
-            log.debug('deleted?')
+            db.session.commit()            
         except SQLAlchemyError as e:            
             log.error(str(e))
             db.session.rollback()

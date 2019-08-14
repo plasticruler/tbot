@@ -1,0 +1,10 @@
+register - register 
+activate - activate your account if you've suspended it
+suspend - temporarily suspend messages from this bot
+viewsubs - view your topics
+addsub - not implemented yet!
+removesub - not implemented yet!
+toadmin - send message to admin
+updateemail - update your registered email address
+about - me?
+sendnow - send a funny message now!

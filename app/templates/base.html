@@ -53,11 +53,8 @@
                             {%if not current_user.is_authenticated%}
                             <li><a href="{{ url_for('auth.login') }}" class="navbar-item">
                                 Login
-                            </a></li>                            
+                            </a></li>                                                        
                             
-                            <li><a href="{{ url_for('auth.signup') }}" class="navbar-item">
-                                Sign Up
-                            </a></li>
                             {%endif%}
       </ul>
       <ul id="nav-mobile" class="sidenav">
@@ -91,6 +88,18 @@
 
                 $('#btn_send_random').bind("click", function(){
                   axios.get('{{url_for("main.send_random")}}')
+                  .then(function(response){
+                      console.log(response);
+                  })
+                  .catch(function(error){
+                        console.log(error);
+                  })
+                });
+
+                $('.send_random_by_content_id').bind("click", function(){   
+                  var url = '{{url_for("main.send_random_by_tag")}}?id='+ this.getAttribute("dataId");
+                  console.log(url);
+                  axios.get(url)
                   .then(function(response){
                       console.log(response);
                   })

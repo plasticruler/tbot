@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, redirect, url_for, request, flash
-from flask_login import login_user, logout_user, login_required
+from flask_security import login_user, logout_user, login_required, roles_required
 from .models import User
 import datetime
 from app.tasks import send_email, send_bot_message
@@ -25,7 +25,6 @@ def login():
         login_user(user, remember=remember)
         return redirect(url_for('main.profile'))
     return render_template('login.html')
-
 
 @auth.route('/signup', methods=['GET', 'POST'])
 def signup():
@@ -59,6 +58,12 @@ def activation():
             login_user(user)
             return redirect(url_for('main.profile'))
     return render_template('activation.html')
+
+@auth.route('/changepassword', methods=['GET','POST'])
+@roles_required("admin")
+@login_required
+def change_password():
+    return render_template("changepassword.html")
 
 @auth.route('/users', methods=['GET', 'POST'])
 @login_required

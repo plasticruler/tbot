@@ -33,13 +33,15 @@
                     <th>
                         Subscriptions
                     </th>
-                    <th>&nbsp;</th>
+                    <th>&nbsp;Send now</th>
+                    <th>&nbsp;Delete</th>
                 </tr>
             </theader>
             {%for r in subscriptions%}
             <tr>
-              <td>{{r.content.value}}</td> 
-              <td><a href="{{url_for('main.profile',id=[r.id])}}"><i class="material-icons red-text">delete</i></a></td> 
+              <td>{{r.content.value}}</td>               
+              <td><a href="#"><i class="material-icons green-text send_random_by_content_id" dataId="{{r.id}}">email</i></a></td>               
+              <td><a href="{{url_for('main.delete',id=[r.id])}}"><i class="material-icons red-text">delete</i></a></td>               
             </tr>
             {%endfor%}
             
