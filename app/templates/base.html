@@ -5,7 +5,7 @@
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>tbot Administration</title>
+    <title>{{app_name}}</title>
     <script src="https://code.jquery.com/jquery-2.2.4.min.js"
             integrity="sha256-BbhdlvQf/xTY9gja0Dq3HiwQF8LaCRTXxZKRutelT44="
             crossorigin="anonymous">
@@ -21,16 +21,14 @@
 </head>
 
 <body>
-<ul id="admin_menu" class="dropdown-content">
-    <li><a href="{{url_for('main.schedules')}}">Schedules</a></li>
-    <li><a href="{{url_for('main.subreddits')}}">Subreddits</a></li>
-    <li><a href="{{url_for('main.instruments')}}">Instruments</a></li>
+<ul id="admin_menu" class="dropdown-content">    
+    <li><a href="{{url_for('main.subreddits')}}">Subreddits</a></li>    
     <li><a href="{{url_for('auth.users')}}">Users</a></li>
     <li><a href="{{url_for('main.stats')}}">Stats</a></li>    
     <li><a href="{{url_for('main.system')}}">System</a></li>    
 </ul>
 <nav class="light-blue lighten-1" role="navigation">
-    <div class="nav-wrapper container"><a id="logo-container" href="#" class="brand-logo">tbot Administration</a>
+    <div class="nav-wrapper container"><a id="logo-container" href="#" class="brand-logo">{{app_name}} </a>
       <ul class="right hide-on-med-and-down">        
                         <li><a href="{{ url_for('main.index') }}" class="navbar-item">
                                 Home
@@ -38,7 +36,7 @@
                             
                             {%if current_user.is_authenticated%}
                             <li><a href="{{ url_for('main.profile') }}" class="navbar-item">
-                                Profile
+                                Your Profile
                             </a></li>
                             {%if current_user.has_role('admin')%}
                             <li><a class="dropdown-trigger" href="#!" data-target="admin_menu" class="navbar-item">
@@ -151,7 +149,9 @@
                     .formSelect();
 
                 $(".dropdown-trigger")
-                    .dropdown();
+                    .dropdown({
+                        coverTrigger:false
+                    });
 
 
             });    

@@ -1,10 +1,10 @@
-from flask import Response, Blueprint, render_template, request, redirect, url_for,jsonify, make_response, flash
+from flask import Response, Blueprint, render_template, request, redirect, url_for,jsonify,session, make_response, flash
 from flask_security import login_required, SQLAlchemySessionUserDatastore, current_user, roles_required
 from flask_paginate import Pagination, get_page_args
 from .models import EquityInstrument,  KeyValueEntry, Key, UserSubscription
 from app.auth.models import User
 from app.tasks import update_reddit_subs_using_payload, send_system_notification, send_email
-from app.distractobottasks import send_random_quote
+from app.distractobottasks import send_random_quote, update_reddit
 from app import app, db, log, Config #, cache
 
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
@@ -13,6 +13,10 @@ import io, timeago, datetime
 import telebot
 
 main = Blueprint('main', __name__)
+
+@main.context_processor
+def inject_global():
+    return {'app_name':app.config['USER_APP_NAME']}
 
 @main.route('/')
 def index():
@@ -45,7 +49,7 @@ def resend_activation_email():
 @login_required
 def refresh_content(r='d'):
     if current_user.is_authenticated and current_user.is_active:
-        update_reddit_subs_using_payload.delay(r,limit=500)
+        update_reddit.delay(r,limit=1000)
         return make_response('Ok',200)
     else:
         return make_response('No', 403)
@@ -70,16 +74,16 @@ def send_random_by_tag():
     else:
         return make_response('Computer says no',403)    
 
-@main.route('/userprofile/<userid>')
+@main.route('/userprofile/<userid>', methods=['GET'])
 @login_required
 @roles_required('admin')
 def userprofile(userid):
     usr = User.query.get(userid)
     if usr is None:
         flash('Invalid user.')
-        return redirect(url_for('auth.users'))
+        return redirect(url_for('auth.users'))    
     subscriptions = UserSubscription.get_by_user(userid)
-    return render_template('userprofile.html', user=usr, subscriptions=subscriptions)
+    return render_template('userprofile.html', user=usr, subscriptions=subscriptions)    
 
 @main.route('/delete', methods = ['GET'])
 @login_required
@@ -94,9 +98,11 @@ def delete():
     
 @main.route('/profile', methods = ['GET','POST'])
 @login_required
-def profile():        
-    #person enters the keyvalue_entry
-    #which must be associated to a key (to get media type)
+def profile(): 
+    action = request.args.get('action', 'random')
+    if action == "delete":
+        us = UserSubscription.get_by_id_for_user()
+                   
     if request.method == 'POST':
         subs_count = UserSubscription.get_by_user(current_user.id).count()        
         if subs_count >= 10 and not current_user.has_role('admin'):
@@ -134,7 +140,9 @@ def subreddits():
     if request.method == 'GET':  #we should cache these results      
         page, per_page, offset = get_page_args(page_parameter='page', per_page_parameter='per_page')                    
         reddits = KeyValueEntry.query.join(Key, KeyValueEntry.key).filter(Key.name.in_(['sr_media','sr_title'])).order_by(KeyValueEntry.value).offset((page-1) * per_page).limit(per_page)        
-        reddit_content_count = db.engine.execute("select tag.name, count(*), max(bq.created_on) from bot_quote bq join tag_associations on bot_quote_id=bq.id join tag on tag.id=tag_associations.tag_id group by tag_id;")
+        reddit_content_count = db.engine.execute("""select  ContentTag.name, count(*), max(ci.created_on) from ContentItem ci
+                                            join contenttag_associations on contentitem_id=ci.id join ContentTag on ContentTag.id=contenttag_associations.contenttag_id 
+                                            group by contenttag_id order by ContentTag.name;""")
         reddit_content_count = {x[0]:{'count':x[1], 'last_updated':timeago.format(x[2], now)} for x in list(reddit_content_count)}        
         reddits_count = KeyValueEntry.query.join(Key, KeyValueEntry.key).filter(Key.name.in_(['sr_media','sr_title'])).count()        
         pagination = Pagination(page=page, per_page=per_page, total=reddits_count)

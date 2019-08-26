@@ -19,3 +19,9 @@ removesub - :grey_exclamation: not implemented yet!
 toadmin - :telephone: send message to admin
 updateemail - :envelope: update your registered email address
 sendnow - :smile: send a funny message now!
+
+
+
+from app.distractobottasks import send_random_quote, run_full_update, update_reddit
+send_random_quote(tag='todayilearned')
+update_reddit_content('lastimages',100)

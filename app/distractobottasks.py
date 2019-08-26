@@ -2,9 +2,10 @@ from __future__ import unicode_literals
 import json
 import os
 import requests
+import emoji
 import datetime
 from app import app, make_celery, log, distracto_bot, mail
-from app.main.models import ContentStats, UserSubscription, Tag, Bot_Quote
+from app.main.models import ContentStats, UserSubscription, ContentItem, ContentTag, KeyValueEntry, Notification, ContentItemStat
 from app.auth.models import User
 from app.tasks import send_email
 import time
@@ -12,123 +13,232 @@ import random
 import datetime
 import re
 import traceback
-
+from app.rbot import reddit
+from app.utils import get_md5
+from app import log, db
+import telegram
+from MySQLdb._exceptions import IntegrityError
+from sqlalchemy.exc import InvalidRequestError
 
 celery = make_celery(app)
 
+def getsubmissionbyid(id):
+    return reddit.submission(id)
+
+def run_full_update():
+    keys = KeyValueEntry.query.all()
+    for key in keys:
+        send_email("mailbox@a20.co.za", "{} started ".format(
+            key.value), "nothing to see", deletable=True)
+        update_reddit(key.value, 10)
+        send_email("mailbox@a20.co.za", "{} completed ".format(
+            key.value), "nothing to see", deletable=True)
+
+
+@celery.task
+def update_reddit(subname, limit=1000):
+    props = {}
+    srs = reddit.subreddit(subname).hot(limit=limit)
+    j = 0
+    for item in srs:
+        j = j+1
+        if item.stickied or item.pinned:
+            continue
+        ci = ContentItem()
+        tags_to_add = [subname]
+        props['id'] = item.id
+        url = getattr(item, 'url', None)
+        props['original_url'] = url
+        ci.title = item.title        
+        props['text'] = getattr(item, 'selftext', None)
+        if url or not 'https://www.reddit.com/r/' in url or not 'wikipedia' in url:
+            if getattr(item, 'media', False):
+                if 'reddit_video' in item.media:
+                    url = item.media['reddit_video']['fallback_url']
+                    props["is_video"] = True  # can send as gif
+                if 'oembed' in item.media:
+                    props['oembed'] = item.media['oembed']
+                    if 'thumbnail_url' in item.media['oembed']:
+                        url = item.media['oembed']['thumbnail_url']
+                    if 'type' in item.media['oembed'] and item.media['oembed']['type'] == 'youtube.com':
+                        ci.title = "{} - {}".format(
+                            ci.title, item.media['oembed']['title'])
+            # if photo only then s.preview[enabled] = True
+            if hasattr(item, 'preview'):                
+                if 'reddit_video_preview' in item.preview:
+                    if 'fallback_url' in item.preview['reddit_video_preview']:
+                        url = item.preview['reddit_video_preview']['fallback_url']
+                        props["is_video"] = True  # can send as gif            
+                if 'reddit_video' in item.preview:
+                    if 'fallback_url' in item.preview['reddit_video']:
+                        url = item.preview['reddit_video']['fallback_url']
+                        props["is_video"] = True  # can send as gif            
+
+        props['url'] = url
+        if is_image(url):
+            props['is_photo'] = True       
+        if item.over_18:
+            tags_to_add.append('_over_18')
+            props["over_18"] = True
+        if item.gilded:
+            tags_to_add.append('_gilded')
+            props["gilded"] = True
+        props['total_awards_received'] = item.total_awards_received
+        # set tags
+        ci.content_tags = [ContentTag.find_or_create_tag(
+            tg) for tg in tags_to_add]
+        props['id'] = item.id
+        props['shortlink'] = item.shortlink
+        props['ups'] = item.ups
+        props['downs'] = item.downs
+        # we'll also save the top 5 top-level comments
+        comments = {}
+        ci.comment_sort = 'best'
+        for i in range(5):
+            if len(item.comments) > i:
+                comments[i] = item.comments[i].body
+        props['comments'] = comments
+        ci.content_hash = get_md5(item.shortlink)
+        ci.data = json.dumps(props)
+        try:
+            ci.save_to_db()
+            log.info(
+                'Processed item with reddit id {} - {} - {}'.format(item.id, item.title, item.shortlink))
+        except InvalidRequestError as e:
+            log.error(e)
+            db.session.session.rollback()
+        except IntegrityError as e:
+            db.session.rollback()
+            pass
+
+
 @celery.task
 def send_content():
-    active_chat_ids = [u.chat_id for u in User.query.filter(User.active==True, User.bot_id==1, User.chat_id.isnot(None), User.subscriptions_active==True)]
-    for u in active_chat_ids: 
-        try:       
+    active_chat_ids = [u.chat_id for u in User.query.filter(
+        User.active == True, User.bot_id == 1, User.chat_id.isnot(None), User.subscriptions_active == True)]
+    for u in active_chat_ids:
+        try:
             send_random_quote(u)
         except Exception as e:
-            log.debug(traceback.format_exc())   
+            log.debug(traceback.format_exc())
+
 
 @celery.task
-def send_email(to, subject, plaintextMessage, deletable=True):    
-    subject = "{}".format(subject + " <deletable>" if deletable else subject)
-    try:        
+def send_email(to, subject, plaintextMessage, deletable=True):
+    subject = "{} {}".format(subject, " <deletable>") if deletable else subject
+    try:
         receiver_email = to
-        message = "Subject: {} \n\n {}".format(subject, plaintextMessage)        
-        msg = mail.send_message(subject, body=plaintextMessage, sender=app.config['MAIL_DEFAULT_SENDER'], recipients=to.split(','))
+        message = "Subject: {} \n\n {}".format(subject, plaintextMessage)
+        msg = mail.send_message(subject, body=plaintextMessage,
+                                sender=app.config['MAIL_DEFAULT_SENDER'], recipients=to.split(','))
         log.debug("Email with subject '{}' sent to {}.".format(subject, to))
     except Exception as e:
-        log.debug(e)            
-
-def has_system_broadcast(chat_id):
-    if random.random() < 0.006: #once every 158 requests
-        return 
-    return False
-
-def send_advert(chat_id):
-    return
-
-def send_system_announcement():
-    return
+        log.debug(e)
 
 @celery.task
-def send_random_quote(chat_id, tag=None):
-    # based on the chat_id, we need to get a random quote from users subscribed items
-    user = User.find_by_chatid(chat_id)    
-    if has_system_broadcast(chat_id):
-
-        return
-    taglist=['adviceanimals','bettereveryloop','todayilearned']
-    # get user subscriptions
-    if tag:
-        log.info('received tag -- : {}'.format(tag))
-        taglist=[tag]
-    else:
-        subs = UserSubscription.get_by_user(user.id)    
-        taglist = [t.content.value for t in subs]    
-    quote = Bot_Quote.return_random_by_tags(taglist)    
-    if quote is None and user is not None:
-        distracto_bot.send_message(chat_id=chat_id, text="You have no subscriptions. Are you registered?")
-        user.subscriptions_active = False
-        user.save_to_db()
-        return
-    if user is None:
-        return
-    payload = None
-    try:
-        payload = json.loads(quote.text)
-        log.debug(payload)
-        url = payload['url']            
-    except ValueError:
-        distracto_bot.send_message(chat_id=ADMIN_CHAT_ID, text="{} ({})".format(quote.text, quote.id)) #plaintext
-        return
-
-    if has_content_moved(url):
-            send_random_quote(chat_id)
-            return
-
-    if is_video_related_post(payload):
-        # is gfycat
-        if 'media' in payload and payload['media'] is not None:            
-            if 'type' in payload['media']:
-                if payload['media']['type'] == 'gfycat':
-                    url = payload['media']['oembed']['thumbnail_url']
-            if not payload['is_reddit_media_domain'] and payload['media'] is None:
-                url = payload['url']
-            if 'reddit_video' in payload['media']:
-                if payload['media']['reddit_video']['is_gif']:
-                    url = payload['media']['reddit_video']['fallback_url']        
-        try:                    
-            if ("nsfw" not in payload['title']):
-                distracto_bot.send_video(chat_id, url, caption="{} (https://reddit.com/{})".format(payload['title'], payload['id']))
-                ContentStats.add_statistic(user, quote)
-            else:
-                send_random_quote(chat_id)
-        except Exception as e:          
-            send_random_quote(chat_id)        
-        return
-    try:        
-        distracto_bot.send_photo(chat_id, url, caption="{} (http://reddit.com/{})".format(payload['title'], payload['id']))
-        ContentStats.add_statistic(user, quote)
-    except Exception as e:
-        send_random_quote(chat_id)        
-
-###############################################################################
-
-def is_video_related_post(payload):
-    url = payload['url']
-    if 'reddit_media_domain' in payload:
-        pattern = 'https://v.redd.it/[a-zA-Z0-9]{13}'
-        if re.match(pattern, url):
-            return True
-    if 'media' in payload:
-        media = payload['media']
-        if media is not None and 'reddit_video' in media:
-            return 'reddit_video' in media
-    if 'http://v.redd.it' in url or 'gfycat.com' in url or url.endswith('mp4') or url.endswith('.gif') or 'imgur.com' in url:
+def send_system_broadcast(chat_id):
+    if random.random() < 0.006:  # once every 158 scheduled posts
+        n = Notification.query.first()        
+        distracto_bot.send_message(chat_id=chat_id, message="*{}* \n{}".format(n.title, n.text))
         return True
     return False
 
-def has_content_moved(url):  # ignore when you are redirected to reddit
-    r = requests.head(url, allow_redirects=False) #only request header
-    return r.status_code == 302
+def is_image(url):
+    return url.endswith('.jpg') or url.endswith('.jpeg') or url.endswith('.png')
 
+@celery.task
+def send_random_quote(chat_id=None, tag=None):
+    if not chat_id:
+        chat_id=app.config['ADMIN_CHAT_ID']
+    user = User.find_by_chatid(chat_id)
+    if user is None:
+        return "User not found."
+    if send_system_broadcast(chat_id):
+        return "system message broadcast!"
+    taglist = []
+    # get user subscriptions
+    if tag:
+        taglist = [tag]
+    else:
+        subs = UserSubscription.get_by_user(user.id)
+        taglist = [t.content.value for t in subs]
+    quote = ContentItem.return_random_by_tags(taglist)
+    if quote is None and user is not None:
+        distracto_bot.send_message(
+            chat_id=chat_id, text="You have no subscriptions. Are you registered?")
+        user.subscriptions_active = False
+        user.save_to_db()
+        return "No subscriptions found for user."
+    payload = None
+    payload = json.loads(quote.data)
+    shortlink = payload.get('shortlink')
+    url = payload.get('url','')
+    log.info(quote.data)
+    if payload.get('over_18',False): #not allowed
+        send_random_quote(chat_id,tag)   
+        return shortlink        
+    if len(payload.get('text', "").strip())==0:  # handle title only        
+        if not payload.get('is_photo', True) and not payload.get('is_video', True):
+            log.debug("condition 1")
+            # no body so likely something like TIL or showerthoughts
+            distracto_bot.send_message(
+                chat_id, "{} \n{}".format(quote.title, shortlink), disable_web_page_preview=True)
+            ContentItemStat.add_statistic(user, quote)
+            return shortlink
+        if payload.get('is_photo', False) or is_image(url):  # is photo
+            log.debug("condition 2")
+            distracto_bot.send_photo(chat_id, payload.get(
+                'url'), caption="{} - {}".format(quote.title, shortlink))
+            ContentItemStat.add_statistic(user, quote)
+            return shortlink        
+        if  payload.get('is_video', False):  # is animation
+            log.debug("condition 3")
+            distracto_bot.send_animation(chat_id, payload.get(
+                'url'), caption="{} - {}".format(quote.title, shortlink))
+            ContentItemStat.add_statistic(user, quote)
+            return shortlink
+        #no phot, no video let's see if it has a url
+        if payload.get('url', False) and 'reddit.com/r/' not in payload.get('url'):
+            log.debug("condition 4")
+            url = payload.get('url')
+            if not url.startswith('https://v.redd.it'):
+                log.debug("condition 4.1")
+                msg = "{} \nLearn more: [{}]({}) \n\nsource: [{}]({})".format(quote.title, (url[:20] + '...') if len(url) > 21 else url,url, tag, shortlink)
+                log.info(msg)
+                distracto_bot.send_message(chat_id, msg, parse_mode=telegram.ParseMode.MARKDOWN, disable_web_page_preview=True)
+                ContentItemStat.add_statistic(user, quote)
+                return shortlink
+            if is_image(url):
+                log.debug("condition 4.2")
+                distracto_bot.send_photo(chat_id, url, caption="{} - {}".format(quote.title, shortlink))
+                ContentItemStat.add_statistic(user, quote)
+                return shortlink
+        
+        # we have no body and no pictures/videos , something like AskReddit so the comments are important        
+        if payload.get('comments', False):      
+            log.info("condition 5")      
+            comments = payload.get('comments')
+            t = []
+            for value in comments:
+                t.append(emoji.emojize("\n:thought_balloon:")+" {} - {}".format(value, comments[value]))
+            msg = "========================\n*{}* \n======================== \n{} \n[{}]({})".format(quote.title, "\n".join(t),tag, payload.get('original_url','https://reddit.com'))
+            distracto_bot.send_message(
+                    chat_id, msg, disable_web_page_preview=True,parse_mode=telegram.ParseMode.MARKDOWN)
+            ContentItemStat.add_statistic(user, quote)
+            return shortlink
+            # build comment block
+        send_random_quote(chat_id, tag)
+    else:
+        # we have title + body saved
+        title = quote.title
+        text = payload.get('text', None)
+        msg = "========================\n*{}* \n======================== \n{} \n[{}]({})".format(title, text,tag, shortlink)        
+        distracto_bot.send_message(
+            chat_id, msg, parse_mode=telegram.ParseMode.MARKDOWN,disable_web_page_preview=True)
+        ContentItemStat.add_statistic(user, quote)
+        return shortlink
+    
+###############################################################################
 
-##################################################################################
-
+if __name__ == '__main__':
+    run_full_update()

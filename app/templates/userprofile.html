@@ -40,8 +40,8 @@
             {%for r in subscriptions%}
             <tr>
               <td>{{r.content.value}}</td>
-              <td><a href="{{url_for('main.profile',id=[r.id])}}"><i class="material-icons red-text">delete</i></a></td> 
-              <td><a href="{{url_for('main.profile',id=[r.id])}}"><i class="material-icons green-text">email</i></a></td> 
+              <td><a href="{{url_for('main.userprofile',userid=r.id)}}?action=delete"><i class="material-icons red-text">delete</i></a></td> 
+              <td><a href="{{url_for('main.userprofile',userid=r.id)}}?action=random"><i class="material-icons green-text">email</i></a></td> 
             </tr>
             {%endfor%}
             

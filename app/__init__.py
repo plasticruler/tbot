@@ -1,6 +1,6 @@
 import click
 
-from flask import Flask, request
+from flask import Flask, request 
 
 from flask_sqlalchemy import SQLAlchemy
 
@@ -26,6 +26,7 @@ import json
 import telebot
 import redis
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Bot
+from flask_session import Session
 #from flask_caching import Cache
 
 
@@ -51,12 +52,11 @@ distracto_bot = Bot(token=app.config['DISTRACTOBOT_API_KEY'])
 #flask mail
 mail = Mail(app)
 
-#cache
-
-#cache = Cache(app)
-
 #redis
 redis_instance = redis.Redis(host=app.config['REDIS_SERVER'], port=app.config['REDIS_PORT'], password=app.config['REDIS_PASSWORD'])
+
+app.config['SESSION_REDIS'] = redis_instance
+Session(app)
 
 # celery
 
@@ -90,13 +90,11 @@ from flask_security import Security, SQLAlchemyUserDatastore, login_required
 user_datastore = SQLAlchemyUserDatastore(db, User, Role)
 app.security = Security(app, user_datastore)
 
-
-
 #admin
-from app.auth.modelviews import SecurityModelView
-admin = Admin(app, name='tbot', template_mode='bootstrap3')
-admin.add_view(SecurityModelView(User, db.session))
-admin.add_view(SecurityModelView(Role, db.session))
+#from app.auth.modelviews import SecurityModelView
+#admin = Admin(app, name='tbot', template_mode='bootstrap3')
+#admin.add_view(SecurityModelView(User, db.session))
+#admin.add_view(SecurityModelView(Role, db.session))
 
 #tasks
 from app.tasks import process_shareprice_data
@@ -115,9 +113,23 @@ def load_user(user_id):
 def create_user():
     db.create_all() 
 
+from app.main.models import Bot_Quote, ContentItem
+import json
+from app.distractobottasks import run_full_update
+@app.cli.command()
+@with_appcontext
+def runfullupdate():
+    run_full_update()    
+    pass
 # cli click commands
 @app.cli.command()
 @with_appcontext
 def processsharepricedata():
     process_shareprice_data.delay()
+
+
+@app.cli.command()
+@with_appcontext
+def sendvideo():
+    bot.send_video(app.config['ADMIN_CHAT_ID'],"https://v.redd.it/o1wssauzjzg31/DASH_1080?source=fallback", caption="cat")  
 

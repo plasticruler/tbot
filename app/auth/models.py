@@ -31,6 +31,9 @@ class User(BaseModel, UserMixin):
     note = db.Column(db.String(200))
     utc_offset = db.Column(db.Integer())
     bot_id = db.Column(db.Integer(), default=1, nullable=False)
+    user_type = db.Column(db.Integer(), default=1, nullable=False) #1 = user, 2 = channel
+    over_18_allowed = db.Column(db.Boolean, default=False)
+    over_18_last_accepted = db.Column(db.DateTime, nullable=True)
 
     def __repr__(self):
         return "<User: {} {}>".format(self.id, self.email)        

@@ -105,8 +105,7 @@ def get_email(update, context):
 @send_typing_action
 def skip_get_email(update, context):    
     chat_id = get_chat_id(update)
-    process_and_save_response(chat_id, "email_value", "{}@none".format(chat_id))
-    update.message.reply_text("Ok, you skipped entering your email.")
+    process_and_save_response(chat_id, "email_value", "{}@none".format(chat_id))    
     return activate(update, context)
 
 @send_typing_action
@@ -229,7 +228,7 @@ def about(update, context):
 
 @send_typing_action
 def help(update, context):
-    update.message.reply_text("Type @distractobot <subredditname> to get a list of available subs.")
+    update.message.reply_text("Type @distractobot <subredditname> to get a list of available subs. \nBring up the menu of public commands by entering / on your keyboard.")
 
 @send_typing_action
 def cause_error(update, context):
@@ -253,6 +252,7 @@ def create_activated_user(chat_id, context, email=None, note=None):
     new_user.subscriptions_active = True
     new_user.active = True
     new_user.note = note if not note is None else "Auto activated"
+    new_user.user_type = 1
     new_user.save_to_db()
     # add random content    
     default_subs = [str(x) for x in get_key("SYSTEM_CACHE", "default_subs").split(',')]
@@ -333,7 +333,7 @@ def main():
 
     dp.add_handler(CommandHandler('start', start))
 
-    dp.add_handler(RegexHandler('^Send Now$', send_now))
+    dp.add_handler(MessageHandler(Filters.regex('^Send Now$'), send_now))
     dp.add_handler(CommandHandler('toadmin', send_admin))
     dp.add_handler(CommandHandler('sendnow', send_now))
     dp.add_handler(CommandHandler('suspend', unsubscribe))

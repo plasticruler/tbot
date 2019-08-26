@@ -1,11 +1,63 @@
 from app.base_models import BaseModel
 from app import db
 import random
+import datetime
 
 # https://stackoverflow.com/questions/21292726/how-to-properly-use-association-proxy-and-ordering-list-together-with-sqlalchemy
 tags = db.Table('tag_associations',
                 db.Column('tag_id', db.Integer, db.ForeignKey('tag.id')),
                 db.Column('bot_quote_id', db.Integer, db.ForeignKey('bot_quote.id')))
+
+content_tags = db.Table('contenttag_associations',
+        db.Column('contenttag_id', db.Integer, db.ForeignKey('ContentTag.id')),
+        db.Column('contentitem_id', db.Integer, db.ForeignKey('ContentItem.id')))        
+
+class Notification(BaseModel):
+    __tablename__ = "Notification"
+    title = db.Column(db.Text())
+    text = db.Column(db.Text())
+    category_id = db.Column(db.Integer)
+    active_from = db.Column(db.DateTime, default=datetime.datetime.now)
+
+class ContentItem(BaseModel):
+    __tablename__ = "ContentItem"   
+    providerid = db.Column(db.String(6), nullable=True) 
+    title = db.Column(db.Text())    
+    data = db.Column(db.Text())
+    content_tags = db.relationship('ContentTag', secondary=content_tags, backref='ContentItem')        
+    content_hash = db.Column(db.String(128), unique=True)
+
+    @classmethod
+    def return_random_by_tags(cls, tag_list):
+        if tag_list is None or tag_list is []:
+            return return_random()
+        rowCount = db.session.query(ContentItem).join(ContentTag, ContentItem.content_tags).filter(ContentTag.name.in_(tag_list)).count()
+        return ContentItem.query.join(ContentTag, ContentItem.content_tags).filter(ContentItem.is_active == True, ContentTag.name.in_(tag_list)).offset(int(rowCount*random.random())).first()
+    @classmethod
+    def return_by_tag(cls, tag):
+        if tag is None or tag is []:
+            raise Exception("Empty tag_list")
+        return ContentItem.query.join(ContentTag, ContentItem.content_tags).filter(ContentItem.is_active == True, ContentTag.name == tag)
+
+    @classmethod
+    def return_random(cls):        
+        rowCount = cls.query.count()
+        return cls.query.filter(ContentItem.is_active == True).offset(int(rowCount*random.random())).first()
+
+    def __repr__(self):
+        return '<ContentItem {}>'.format(self.title)
+
+class ContentItemStat(BaseModel):
+    __tablename__ = 'ContentItemStat'
+    user_id = db.Column(db.Integer(), db.ForeignKey('users.id'))
+    contentitem_id = db.Column(db.Integer(), db.ForeignKey('ContentItem.id'))
+    
+    @classmethod
+    def add_statistic(cls, user, quote):
+        cs = ContentItemStat()
+        cs.user_id = user.id
+        cs.contentitem_id = quote.id
+        cs.save_to_db()
 
 class Bot_Quote(BaseModel):
     __tablename__ = 'bot_quote'
@@ -20,7 +72,12 @@ class Bot_Quote(BaseModel):
             return return_random()
         rowCount = db.session.query(Bot_Quote).join(Tag, Bot_Quote.tags).filter(Tag.name.in_(tag_list)).count()
         return Bot_Quote.query.join(Tag, Bot_Quote.tags).filter(Bot_Quote.is_active == True, Tag.name.in_(tag_list)).offset(int(rowCount*random.random())).first()
-    
+    @classmethod
+    def return_by_tag(cls, tag):
+        if tag is None or tag is []:
+            raise Exception("Empty tag_list")
+        return Bot_Quote.query.join(Tag, Bot_Quote.tags).filter(Bot_Quote.is_active == True, Tag.name == tag)
+
     @classmethod
     def return_random(cls):        
         rowCount = cls.query.count()
@@ -29,9 +86,31 @@ class Bot_Quote(BaseModel):
     def __repr__(self):
         return '<Bot_Quote {}>'.format(self.text)
 
+class ContentTag(BaseModel):
+        __tablename__ = 'ContentTag'
+        name = db.Column(db.String(120), unique=True, nullable=False)
+    
+        def __init__(self, name=None):
+            self.is_active = True
+            self.name = name
+    
+        @classmethod
+        def find_or_create_tag(cls, name):
+            t = ContentTag.query.filter(ContentTag.name == name).first()
+            if t is None:
+                t = ContentTag(name=name)
+            return t
+    
+        @classmethod
+        def find_by_name(cls, name):
+            return cls.query.filter_by(name=name).first()
+
 class Tag(BaseModel):
     __tablename__ = 'tag'
     name = db.Column(db.String(120), unique=True, nullable=False)
+
+    def __repr__(self):
+        return "<{} - {}>".format(self.name, self.id)
 
     def __init__(self, name=None):
         self.is_active = True
@@ -78,7 +157,6 @@ class EquityInstrument(BaseModel):
 
     def __repr__(self):
         return '<EquityInstrument {} - {}>'.format(self.jse_code, self.company_name)
-
 
 class EquityPrice(BaseModel):
     __tablename__ = 'equity_price'
@@ -194,3 +272,5 @@ class UserSubscription(BaseModel):
         return UserSubscription.query.join(KeyValueEntry).filter(UserSubscription.user_id==user_id).order_by(KeyValueEntry.value)
     def __repr__(self):
         return "{}".format(self.content.value)        
+
+
