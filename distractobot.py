@@ -4,6 +4,7 @@ from telegram.ext import ConversationHandler, CallbackQueryHandler, Filters, Inl
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, ChatAction
 from telegram import  InlineQueryResultArticle, ParseMode, InputTextMessageContent
+import telegram
 import requests
 import re
 import datetime
@@ -12,7 +13,7 @@ import json
 from app import app, log
 from app import redis_instance, make_celery, distracto_bot
 from app.auth.models import User, Role
-from app.main.models import UserSubscription, ContentStats, Bot_Quote, KeyValueEntry
+from app.main.models import UserSubscription, ContentStats, Bot_Quote, KeyValueEntry, ContentItemStat
 from app.utils import generate_random_confirmation_code
 from app.distractobottasks import send_random_quote, send_email
 from app.tasks import update_reddit_subs_using_payload
@@ -237,7 +238,6 @@ def cause_error(update, context):
     update.message.reply_text("Error handled!")
 ##############################################################################
 
-
 def user_exists(**kwargs):
     return User.exists(**kwargs)
 
@@ -266,6 +266,15 @@ def create_activated_user(chat_id, context, email=None, note=None):
     context.bot.send_message(chat_id=chat_id, text="Ok, your account has been created and some default topics have been added. View them by sending /viewsubs If you want to view all available topics enter '@DistractoBot <search>'")
     context.bot.send_message(chat_id=chat_id, text="And, to suspend your subscription just send /unsubscribe")
 
+@send_typing_action
+@role_required("admin")
+def get_content_stats(update, context):
+    chat_id = get_chat_id(update)    
+    stats = ContentItemStat.get_top_stats(10)
+    msg = "=============== \n*TOP 10 CONTENT ITEMS* \n=============== \n"+ "\n".join(["{} - {} - {}".format(k, stats[k]['count'], stats[k]['last_updated']) for k in stats])
+    context.bot.send_message(chat_id=chat_id, text=msg, parse_mode=telegram.ParseMode.MARKDOWN)
+
+
 def selectResult(update, context):
     query = update.chosen_inline_result    
     cid =query.to_dict()["from"]["id"]        
@@ -281,16 +290,26 @@ def inlinequery(update, context):
         input_message_content=InputTextMessageContent(v)) for v in values]  
     update.inline_query.answer(results)
 
+
 #################################################################################
 
 def error_callback(update, context):    
     if context.error == "Results_too_much":
         send_system_message(err, to_bot=False, also_email=True)    
         return
-    log.error("Update {} caused error {}".format(update, context.error))    
-    send_system_message(context.error, to_bot=True)
+    log.error("Update {} caused error {}".format(update, context.error))        
     err = traceback.format_exc()
-    send_system_message(err, to_bot=False, also_email=True)    
+    send_system_message(err, to_bot=True, also_email=True)    
+@send_typing_action
+def upvotes(update, context):
+    keyboard = [[InlineKeyboardButton("Up",callback_data='up'),
+    InlineKeyboardButton("Down", callback_data="down"), InlineKeyboardButton("Publish", callback_data="pub", switch_inline_query="publisher")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    update.message.reply_text("choose",reply_markup=reply_markup)
+    pass
+def button(update,context):
+    query = update.callback_query
+    query.edit_message_text(text="Selected option: {}".format(query.data))
 
 @send_typing_action
 def send_admin(update, context):
@@ -335,7 +354,10 @@ def main():
     dp.add_handler(CommandHandler('start', start))
 
     dp.add_handler(MessageHandler(Filters.regex('^Send Now$'), send_now))
+    dp.add_handler(CommandHandler('upvotes', upvotes))
+    dp.add_handler(CallbackQueryHandler(button))
     dp.add_handler(CommandHandler('toadmin', send_admin))
+    dp.add_handler(CommandHandler('contentstats', get_content_stats))
     dp.add_handler(CommandHandler('sendnow', send_now))
     dp.add_handler(CommandHandler('suspend', unsubscribe))
     dp.add_handler(CommandHandler('viewsubs', viewsubscriptions))        

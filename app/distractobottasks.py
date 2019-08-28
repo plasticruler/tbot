@@ -194,7 +194,7 @@ def send_random_quote(chat_id=None, tag=None):
     payload = json.loads(quote.data)
     shortlink = payload.get('shortlink')
     url = payload.get('url', '')
-    log.info(quote.data)
+    log.debug(quote.data)
     if ("nsfw" in quote.title.lower() or payload.get('over_18', False)) and not user.over_18_allowed:  # not allowed
         send_random_quote(chat_id, tag)
         return shortlink

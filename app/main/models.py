@@ -2,6 +2,7 @@ from app.base_models import BaseModel
 from app import db
 import random
 import datetime
+import timeago
 
 # https://stackoverflow.com/questions/21292726/how-to-properly-use-association-proxy-and-ordering-list-together-with-sqlalchemy
 tags = db.Table('tag_associations',
@@ -51,6 +52,16 @@ class ContentItemStat(BaseModel):
     __tablename__ = 'ContentItemStat'
     user_id = db.Column(db.Integer(), db.ForeignKey('users.id'))
     contentitem_id = db.Column(db.Integer(), db.ForeignKey('ContentItem.id'))
+
+    @staticmethod
+    def get_top_stats(limitby=10):
+        now = datetime.datetime.now() + datetime.timedelta(seconds = 60 * 3.4)    
+        reddit_content_count = db.engine.execute("""select  LOWER(ContentTag.name), count(*) cnt, max(ci.created_on) from ContentItem ci
+        join contenttag_associations on contentitem_id=ci.id 
+        join ContentTag on ContentTag.id=contenttag_associations.contenttag_id 
+        where ContentTag.name not like '\\_%%'
+        group by contenttag_id order by cnt desc, ContentTag.name limit """ + "{};".format(limitby))
+        return {x[0]:{'count':x[1], 'last_updated':timeago.format(x[2], now)} for x in list(reddit_content_count)}     
     
     @classmethod
     def add_statistic(cls, user, quote):
@@ -252,7 +263,7 @@ class KeyValueEntry(BaseModel):
 class ContentStats(BaseModel):
     __tablename__ = 'content_stats'
     user_id = db.Column(db.Integer(), db.ForeignKey('users.id'))
-    quote_id = db.Column(db.Integer(), db.ForeignKey('bot_quote.id'))
+    quote_id = db.Column(db.Integer(), db.ForeignKey('bot_quote.id'))    
 
     @classmethod
     def add_statistic(cls, user, quote):
