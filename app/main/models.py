@@ -290,6 +290,4 @@ class UserSubscription(BaseModel):
     def get_by_user(cls, user_id):
         return UserSubscription.query.join(KeyValueEntry).filter(UserSubscription.user_id==user_id).order_by(KeyValueEntry.value)
     def __repr__(self):
-        return "<UserSubscription {} - {}>".format(self.id, self.keyvalue_entry.value)        
-
-
+        return "<UserSubscription {} - {}>".format(self.id, self.keyvalue_entry.value)       
