@@ -177,15 +177,12 @@ def send_random_quote(chat_id=None, tag=None):
     if user is None:
         return "User not found."
     if send_system_broadcast(chat_id):
-        return "system message broadcast!"
-    taglist = []
+        return "system message broadcast!"    
     # get user subscriptions
-    if tag:
-        taglist = [tag]
-    else:
-        subs = UserSubscription.get_by_user(user.id)
-        taglist = [t.keyvalue_entry.value for t in subs]
-    quote = ContentItem.return_random_by_tags(taglist)
+    if not tag:            
+        subs = UserSubscription.get_by_user(user.id) #can refactor to send only 1
+        tag = random.choice([t.keyvalue_entry.value for t in subs])
+    quote = ContentItem.return_random_by_tags([tag]])
     if quote is None and user is not None:
         distracto_bot.send_message(chat_id=chat_id, text="You have no subscriptions. Are you registered?")
         send_system_message("User has not subscriptions. User will be disabled. {}".format(user.id))
@@ -227,8 +224,8 @@ def send_random_quote(chat_id=None, tag=None):
             if not url.startswith('https://v.redd.it'):
                 log.debug("condition 4.1")
                 msg = "{} \nLearn more: [{}]({}) \n\nsource: [{}]({})".format(
-                    quote.title, (url[:20] + '...') if len(url) > 21 else url, url, shortlink, shortlink)
-                log.info(msg)
+                    quote.title, (url[:20] + '...') if len(url) > 21 else url, url, tag, shortlink)
+                log.debug(msg)
                 distracto_bot.send_message(
                     chat_id, msg, parse_mode=telegram.ParseMode.MARKDOWN, disable_web_page_preview=True)
                 ContentItemStat.add_statistic(user, quote)
@@ -242,14 +239,14 @@ def send_random_quote(chat_id=None, tag=None):
 
         # we have no body and no pictures/videos , something like AskReddit so the comments are important
         if payload.get('comments', False):
-            log.info("condition 5")
+            log.debug("condition 5")            
             comments = payload.get('comments')
             t = []
             for value in comments:
                 t.append(emoji.emojize("\n:thought_balloon:") +
                          " {} - {}".format(value, comments[value]))
             msg = "========================\n*{}* \n======================== \n{} \n[{}]({})".format(
-                quote.title, "\n".join(t), shortlink, payload.get('original_url', 'https://reddit.com'))
+                quote.title, "\n".join(t), tag, payload.get('original_url', 'https://reddit.com'))
             distracto_bot.send_message(
                 chat_id, msg, disable_web_page_preview=True, parse_mode=telegram.ParseMode.MARKDOWN)
             ContentItemStat.add_statistic(user, quote)
@@ -261,7 +258,7 @@ def send_random_quote(chat_id=None, tag=None):
         title = quote.title
         text = payload.get('text', None)
         msg = "========================\n*{}* \n======================== \n{} \n[{}]({})".format(
-            title, text, shortlink, shortlink)
+            title, text, tag, shortlink)
         distracto_bot.send_message(
             chat_id, msg, parse_mode=telegram.ParseMode.MARKDOWN, disable_web_page_preview=True)
         ContentItemStat.add_statistic(user, quote)
