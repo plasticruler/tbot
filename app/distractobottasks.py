@@ -187,8 +187,8 @@ def send_random_quote(chat_id=None, tag=None):
         taglist = [t.content.value for t in subs]
     quote = ContentItem.return_random_by_tags(taglist)
     if quote is None and user is not None:
-        distracto_bot.send_message(
-            chat_id=chat_id, text="You have no subscriptions. Are you registered?")
+        distracto_bot.send_message(chat_id=chat_id, text="You have no subscriptions. Are you registered?")
+        send_system_message("User has not subscriptions. User will be disabled. {}".format(user.id))
         user.subscriptions_active = False
         user.save_to_db()
         return "No subscriptions found for user."
@@ -197,7 +197,7 @@ def send_random_quote(chat_id=None, tag=None):
     shortlink = payload.get('shortlink')
     url = payload.get('url', '')
     log.info(quote.data)
-    if payload.get('over_18', False):  # not allowed
+    if payload.get('over_18', False) and not user.over_18_allowed:  # not allowed
         send_random_quote(chat_id, tag)
         return shortlink
     if len(payload.get('text', "").strip()) == 0:  # handle title only

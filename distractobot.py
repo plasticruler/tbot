@@ -65,6 +65,7 @@ def start(update, context):
 def send_now(update, context):
     chat_id = get_chat_id(update)
     if user_exists(chat_id=chat_id):
+        log.info('Sending /sendnow to {}'.format(chat_id))
         send_random_quote.delay(chat_id)
     else:
         message = emojize("You need to register for that. Send /register :lock:", use_aliases=True)
@@ -151,7 +152,7 @@ def viewsubscriptions(update, context):
         distracto_bot.send_message(chat_id=chat_id,text="You are not registered.")
         return    
     subs = UserSubscription.get_by_user(user.id)
-    rep = "Your subscribed topics are: \n" + "\n".join(["https://www.reddit.com/r/{}".format(s.content.value) for s in subs])
+    rep = "Your subscribed topics are: \n" + "\n".join(["https://www.reddit.com/r/{}".format(s.keyvalue_entry.value) for s in subs])
     update.message.reply_text("Ok, {}".format(rep), disable_web_page_preview=True)
 
 @send_typing_action
