@@ -140,6 +140,7 @@ def send_content():
             send_system_message("A user bailed on us!",traceback.format_exc(),True, True)          
         except Exception as e:
             log.debug(traceback.format_exc())
+            send_system_message("Exception during send_content!",traceback.format_exc(),True, True)          
 
 
 @celery.task
