@@ -274,8 +274,8 @@ def send_bot_message(chat_id, messageText):
 @celery.task
 def send_system_message(subject, plainTextMessage=None, email=False, send_to_bot=True):
     if send_to_bot:
-        send_bot_message(ADMIN_CHAT_ID, emoji.emojize(":exclamation:") + " " + subject)
+        send_bot_message(app.config['ADMIN_CHAT_ID'], emoji.emojize(":exclamation:") + " " + subject)
     if email:
-        send_email.delay(TASK_NOTIFICATION_EMAIL, subject,
+        send_email.delay(app.config['NOTIFICATIONS_RECIPIENT_EMAIL'], subject,
                          "Nothing here." if plainTextMessage is None else plainTextMessage, True)
     log.info("{} \t {}".format(subject, plainTextMessage))
