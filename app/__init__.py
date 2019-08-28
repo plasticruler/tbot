@@ -128,8 +128,3 @@ def processsharepricedata():
     process_shareprice_data.delay()
 
 
-@app.cli.command()
-@with_appcontext
-def sendvideo():
-    bot.send_video(app.config['ADMIN_CHAT_ID'],"https://v.redd.it/o1wssauzjzg31/DASH_1080?source=fallback", caption="cat")  
-

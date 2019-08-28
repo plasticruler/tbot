@@ -43,7 +43,7 @@ def mass_add():
         try:
             for j in "suspiciouslyspecific, wellworn, wholesomememes, praisethecameraman, relationship_advice,mechanical_gifs, askreddit, dadjokes, jokes, coolguides, todayilearned".split(','):
                 if len(j.strip()) > 0:
-                    UserSubscription.create_subscription(u,j)
+                    UserSubscription.create_subscription(u,j.strip())
         except Exception as e:
             log.debug(traceback.format_exc())    
 
@@ -135,7 +135,7 @@ def send_content():
             user = User.find_by_chatid(u)
             user.is_active = False
             user.subscriptions_active = False
-            user.note = "{}".format(user.note, "Unauthorized error")
+            user.note = "{} - {}".format(user.note, "Unauthorized error")
             user.save_to_db()  
             send_system_message("A user bailed on us!",traceback.format_exc(),True, True)          
         except Exception as e:

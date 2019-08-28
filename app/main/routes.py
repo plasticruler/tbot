@@ -94,8 +94,7 @@ def userprofile(userid):
         if request.args.get('action') == 'random':               
             id_to_delete = request.args.get('id')                                                                    
             sub = UserSubscription.query.get(id_to_delete)
-            if sub:       
-                print("{} {} ".format(sub.user.chat_id, sub.keyvalue_entry.value))
+            if sub:                       
                 try:
                     send_random_quote(sub.user.chat_id, sub.keyvalue_entry.value)
                 except Unauthorized as e:                    
@@ -154,13 +153,13 @@ def subreddits():
     now = datetime.datetime.now() + datetime.timedelta(seconds = 60 * 3.4)    
     if request.method == 'GET':  #we should cache these results      
         page, per_page, offset = get_page_args(page_parameter='page', per_page_parameter='per_page')                    
-        reddits = KeyValueEntry.query.join(Key, KeyValueEntry.key).filter(Key.name.in_(['sr_media'])).order_by(KeyValueEntry.value).offset((page-1) * per_page).limit(per_page)        
+        reddits = KeyValueEntry.query.order_by(KeyValueEntry.value).offset((page-1) * per_page).limit(per_page)        
         reddit_content_count = db.engine.execute("""select  LOWER(ContentTag.name), count(*), max(ci.created_on) from ContentItem ci
                                             join contenttag_associations on contentitem_id=ci.id 
                                             join ContentTag on ContentTag.id=contenttag_associations.contenttag_id 
                                             group by contenttag_id order by ContentTag.name;""")
         reddit_content_count = {x[0]:{'count':x[1], 'last_updated':timeago.format(x[2], now)} for x in list(reddit_content_count)}        
-        reddits_count = KeyValueEntry.query.join(Key, KeyValueEntry.key).filter(Key.name.in_(['sr_media'])).count()        
+        reddits_count = KeyValueEntry.query.count()        
         pagination = Pagination(page=page, per_page=per_page, total=reddits_count)
         return render_template('subreddits.html', reddits=reddits, page=page,per_page=per_page, pagination=pagination, rc=reddit_content_count)
 
