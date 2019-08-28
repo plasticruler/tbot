@@ -136,7 +136,7 @@ def send_content():
             user.is_active = False
             user.subscriptions_active = False
             user.note = "{}".format(user.note, "Unauthorized error")
-            user.save()  
+            user.save_to_db()  
             send_system_message("A user bailed on us!",traceback.format_exc(),True, True)          
         except Exception as e:
             log.debug(traceback.format_exc())
