@@ -1,11 +1,12 @@
 from flask import Response, Blueprint, render_template, request, redirect, url_for,jsonify,session, make_response, flash
 from flask_security import login_required, SQLAlchemySessionUserDatastore, current_user, roles_required
 from flask_paginate import Pagination, get_page_args
-from .models import EquityInstrument,  KeyValueEntry, Key, UserSubscription
+from .models import EquityInstrument,  KeyValueEntry, Key, UserSubscription, ContentTag
 from app.auth.models import User
 from app.tasks import update_reddit_subs_using_payload, send_system_notification, send_email
 from app.distractobottasks import send_random_quote, update_reddit
 from app import app, db, log, Config #, cache
+from telegram.error import Unauthorized
 
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -49,7 +50,7 @@ def resend_activation_email():
 @login_required
 def refresh_content(r='d'):
     if current_user.is_authenticated and current_user.is_active:
-        update_reddit.delay(r,limit=1000)
+        update_reddit.delay(r,limit=500)
         return make_response('Ok',200)
     else:
         return make_response('No', 403)
@@ -67,22 +68,50 @@ def send_random():
 @login_required
 def send_random_by_tag():    
     id = request.args.get('id')
-    sub = UserSubscription.get_by_id_for_user(id,current_user.id)
-    if current_user.is_authenticated and current_user.is_active and sub:        
-        send_random_quote.delay(current_user.chat_id,str(sub))
+    sub = UserSubscription.get_by_id_for_user(id,current_user.id)    
+    if sub and current_user.is_active:        
+        send_random_quote.delay(current_user.chat_id,sub.keyvalue_entry.value)
         return make_response('Ok',200)
     else:
         return make_response('Computer says no',403)    
 
-@main.route('/userprofile/<userid>', methods=['GET'])
+@main.route('/userprofile/<userid>', methods=['GET', 'POST'])
 @login_required
 @roles_required('admin')
 def userprofile(userid):
     usr = User.query.get(userid)
     if usr is None:
         flash('Invalid user.')
-        return redirect(url_for('auth.users'))    
-    subscriptions = UserSubscription.get_by_user(userid)
+        return redirect(url_for('auth.users'))        
+    if request.method == 'GET':
+        if request.args.get('action') == 'delete':            
+            id_to_delete = request.args.get('id')                
+            if id_to_delete:                
+                sub_to_delete = UserSubscription.query.get(id_to_delete)
+                if sub_to_delete:                              
+                    sub_to_delete.delete() 
+                    return redirect(url_for('main.userprofile',userid=userid))             
+        if request.args.get('action') == 'random':               
+            id_to_delete = request.args.get('id')                                                                    
+            sub = UserSubscription.query.get(id_to_delete)
+            if sub:       
+                print("{} {} ".format(sub.user.chat_id, sub.keyvalue_entry.value))
+                try:
+                    send_random_quote(sub.user.chat_id, sub.keyvalue_entry.value)
+                except Unauthorized as e:                    
+                    usr.is_active = False
+                    usr.subscriptions_active = False
+                    usr.note = "{} - {}".format(usr.note, "auto block")
+                    usr.save_to_db()
+                    return redirect(url_for('auth.users'))
+                return redirect(url_for('main.userprofile',userid=userid))             
+                    
+    if request.method =='POST':                    
+        if not len(request.form.get('topic').strip())==0:            
+            topic = request.form.get('topic').strip().lower()
+            UserSubscription.create_subscription(userid, topic)
+            
+    subscriptions = UserSubscription.get_by_user(userid)                    
     return render_template('userprofile.html', user=usr, subscriptions=subscriptions)    
 
 @main.route('/delete', methods = ['GET'])
@@ -91,7 +120,7 @@ def delete():
     if request.method == 'GET':        
         id_to_delete = request.args.get('id')                
         if id_to_delete:
-            sub_to_delete = UserSubscription.query.filter(UserSubscription.id==id_to_delete, UserSubscription.user_id==current_user.id)
+            sub_to_delete = UserSubscription.get_by_id_for_user(id_to_delete, current_user.id)
             if sub_to_delete:                                
                 sub_to_delete.delete()                                      
     return redirect(url_for('main.profile'))                        
@@ -100,34 +129,20 @@ def delete():
 @login_required
 def profile(): 
     action = request.args.get('action', 'random')
+    
     if action == "delete":
-        us = UserSubscription.get_by_id_for_user()
+        id = request.args.get('id')
+        us = UserSubscription.get_by_id_for_user(id,current_user.id)
+        us.delete()            
                    
     if request.method == 'POST':
         subs_count = UserSubscription.get_by_user(current_user.id).count()        
         if subs_count >= 10 and not current_user.has_role('admin'):
             flash('Sorry. Your account only allows for 10 subscriptions.')    
         else:
-            if not len(request.form.get('subreddit_name').strip())==0:            
-                usr = User.query.get(current_user.id)        
-                sub = request.form.get('subreddit_name').strip()
-                kvn = sub.strip()
-                k = 'sr_media' #always assume it's media related        
-                key = Key.find_by_name(k)
-                if (key is None):
-                    key = Key()
-                    key.name = k
-                    key.save_to_db()
-                kv = KeyValueEntry.find_by_key_value(k, kvn)
-                if kv is None:            
-                    kv = KeyValueEntry()
-                    kv.key = key
-                    kv.value = kvn
-                    kv.save_to_db()
-                sub = UserSubscription()
-                sub.user_id = current_user.id
-                sub.content_id = kv.id
-                sub.save_to_db()                          
+            if not len(request.form.get('subreddit_name').strip())==0:                            
+                topic = request.form.get('subreddit_name').strip().lower()
+                UserSubscription.create_subscription(current_user.id, topic)
     subscriptions = UserSubscription.get_by_user(user_id=current_user.id)
     return render_template('profile.html', subscriptions=subscriptions, email_address=current_user.email)
    
@@ -139,12 +154,13 @@ def subreddits():
     now = datetime.datetime.now() + datetime.timedelta(seconds = 60 * 3.4)    
     if request.method == 'GET':  #we should cache these results      
         page, per_page, offset = get_page_args(page_parameter='page', per_page_parameter='per_page')                    
-        reddits = KeyValueEntry.query.join(Key, KeyValueEntry.key).filter(Key.name.in_(['sr_media','sr_title'])).order_by(KeyValueEntry.value).offset((page-1) * per_page).limit(per_page)        
-        reddit_content_count = db.engine.execute("""select  ContentTag.name, count(*), max(ci.created_on) from ContentItem ci
-                                            join contenttag_associations on contentitem_id=ci.id join ContentTag on ContentTag.id=contenttag_associations.contenttag_id 
+        reddits = KeyValueEntry.query.join(Key, KeyValueEntry.key).filter(Key.name.in_(['sr_media'])).order_by(KeyValueEntry.value).offset((page-1) * per_page).limit(per_page)        
+        reddit_content_count = db.engine.execute("""select  LOWER(ContentTag.name), count(*), max(ci.created_on) from ContentItem ci
+                                            join contenttag_associations on contentitem_id=ci.id 
+                                            join ContentTag on ContentTag.id=contenttag_associations.contenttag_id 
                                             group by contenttag_id order by ContentTag.name;""")
         reddit_content_count = {x[0]:{'count':x[1], 'last_updated':timeago.format(x[2], now)} for x in list(reddit_content_count)}        
-        reddits_count = KeyValueEntry.query.join(Key, KeyValueEntry.key).filter(Key.name.in_(['sr_media','sr_title'])).count()        
+        reddits_count = KeyValueEntry.query.join(Key, KeyValueEntry.key).filter(Key.name.in_(['sr_media'])).count()        
         pagination = Pagination(page=page, per_page=per_page, total=reddits_count)
         return render_template('subreddits.html', reddits=reddits, page=page,per_page=per_page, pagination=pagination, rc=reddit_content_count)
 

@@ -22,18 +22,30 @@ from sqlalchemy.exc import InvalidRequestError
 
 celery = make_celery(app)
 
+
 def getsubmissionbyid(id):
     return reddit.submission(id)
+
 
 def run_full_update():
     keys = KeyValueEntry.query.all()
     for key in keys:
         send_email("mailbox@a20.co.za", "{} started ".format(
             key.value), "nothing to see", deletable=True)
-        update_reddit(key.value, 10)
+        update_reddit(key.value, 300)
         send_email("mailbox@a20.co.za", "{} completed ".format(
             key.value), "nothing to see", deletable=True)
 
+def mass_add():
+    active_user_id = [u.id for u in User.query.filter(
+        User.active == True, User.bot_id == 1, User.chat_id.isnot(None), User.subscriptions_active == True)]
+    for u in active_user_id:
+        try:
+            for j in "suspiciouslyspecific, wellworn, wholesomememes, praisethecameraman, relationship_advice,mechanical_gifs, askreddit, dadjokes, jokes, coolguides, todayilearned".split(','):
+                if len(j.strip()) > 0:
+                    UserSubscription.create_subscription(u,j)
+        except Exception as e:
+            log.debug(traceback.format_exc())    
 
 @celery.task
 def update_reddit(subname, limit=1000):
@@ -49,7 +61,7 @@ def update_reddit(subname, limit=1000):
         props['id'] = item.id
         url = getattr(item, 'url', None)
         props['original_url'] = url
-        ci.title = item.title        
+        ci.title = item.title
         props['text'] = getattr(item, 'selftext', None)
         if url or not 'https://www.reddit.com/r/' in url or not 'wikipedia' in url:
             if getattr(item, 'media', False):
@@ -64,19 +76,19 @@ def update_reddit(subname, limit=1000):
                         ci.title = "{} - {}".format(
                             ci.title, item.media['oembed']['title'])
             # if photo only then s.preview[enabled] = True
-            if hasattr(item, 'preview'):                
+            if hasattr(item, 'preview'):
                 if 'reddit_video_preview' in item.preview:
                     if 'fallback_url' in item.preview['reddit_video_preview']:
                         url = item.preview['reddit_video_preview']['fallback_url']
-                        props["is_video"] = True  # can send as gif            
+                        props["is_video"] = True  # can send as gif
                 if 'reddit_video' in item.preview:
                     if 'fallback_url' in item.preview['reddit_video']:
                         url = item.preview['reddit_video']['fallback_url']
-                        props["is_video"] = True  # can send as gif            
+                        props["is_video"] = True  # can send as gif
 
         props['url'] = url
         if is_image(url):
-            props['is_photo'] = True       
+            props['is_photo'] = True
         if item.over_18:
             tags_to_add.append('_over_18')
             props["over_18"] = True
@@ -103,7 +115,7 @@ def update_reddit(subname, limit=1000):
         try:
             ci.save_to_db()
             log.info(
-                'Processed item with reddit id {} - {} - {}'.format(item.id, item.title, item.shortlink))
+                '{} Processed item with reddit id {} - {} - {}'.format(j, item.id, item.title, item.shortlink))
         except InvalidRequestError as e:
             log.error(e)
             db.session.session.rollback()
@@ -115,10 +127,17 @@ def update_reddit(subname, limit=1000):
 @celery.task
 def send_content():
     active_chat_ids = [u.chat_id for u in User.query.filter(
-        User.active == True, User.bot_id == 1, User.chat_id.isnot(None), User.subscriptions_active == True)]
+        User.active == True, User.subscriptions_active == True)]
     for u in active_chat_ids:
         try:
             send_random_quote(u)
+        except telegram.error.Unauthorized as e:
+            user = User.find_by_chatid(u)
+            user.is_active = False
+            user.subscriptions_active = False
+            user.note = "{}".format(user.note, "Unauthorized error")
+            user.save()  
+            send_system_message("A user bailed on us!",traceback.format_exc(),True, True)          
         except Exception as e:
             log.debug(traceback.format_exc())
 
@@ -135,21 +154,25 @@ def send_email(to, subject, plaintextMessage, deletable=True):
     except Exception as e:
         log.debug(e)
 
+
 @celery.task
 def send_system_broadcast(chat_id):
     if random.random() < 0.006:  # once every 158 scheduled posts
-        n = Notification.query.first()        
-        distracto_bot.send_message(chat_id=chat_id, message="*{}* \n{}".format(n.title, n.text))
-        return True
+        n = Notification.query.first()
+        if n:
+            distracto_bot.send_message(chat_id=chat_id, message="*{}* \n{}".format(n.title, n.text))
+            return True
     return False
+
 
 def is_image(url):
     return url.endswith('.jpg') or url.endswith('.jpeg') or url.endswith('.png')
 
+
 @celery.task
 def send_random_quote(chat_id=None, tag=None):
     if not chat_id:
-        chat_id=app.config['ADMIN_CHAT_ID']
+        chat_id = app.config['ADMIN_CHAT_ID']
     user = User.find_by_chatid(chat_id)
     if user is None:
         return "User not found."
@@ -172,12 +195,12 @@ def send_random_quote(chat_id=None, tag=None):
     payload = None
     payload = json.loads(quote.data)
     shortlink = payload.get('shortlink')
-    url = payload.get('url','')
+    url = payload.get('url', '')
     log.info(quote.data)
-    if payload.get('over_18',False): #not allowed
-        send_random_quote(chat_id,tag)   
-        return shortlink        
-    if len(payload.get('text', "").strip())==0:  # handle title only        
+    if payload.get('over_18', False):  # not allowed
+        send_random_quote(chat_id, tag)
+        return shortlink
+    if len(payload.get('text', "").strip()) == 0:  # handle title only
         if not payload.get('is_photo', True) and not payload.get('is_video', True):
             log.debug("condition 1")
             # no body so likely something like TIL or showerthoughts
@@ -190,40 +213,45 @@ def send_random_quote(chat_id=None, tag=None):
             distracto_bot.send_photo(chat_id, payload.get(
                 'url'), caption="{} - {}".format(quote.title, shortlink))
             ContentItemStat.add_statistic(user, quote)
-            return shortlink        
-        if  payload.get('is_video', False):  # is animation
+            return shortlink
+        if payload.get('is_video', False):  # is animation
             log.debug("condition 3")
             distracto_bot.send_animation(chat_id, payload.get(
                 'url'), caption="{} - {}".format(quote.title, shortlink))
             ContentItemStat.add_statistic(user, quote)
             return shortlink
-        #no phot, no video let's see if it has a url
+        # no phot, no video let's see if it has a url
         if payload.get('url', False) and 'reddit.com/r/' not in payload.get('url'):
             log.debug("condition 4")
             url = payload.get('url')
             if not url.startswith('https://v.redd.it'):
                 log.debug("condition 4.1")
-                msg = "{} \nLearn more: [{}]({}) \n\nsource: [{}]({})".format(quote.title, (url[:20] + '...') if len(url) > 21 else url,url, tag, shortlink)
+                msg = "{} \nLearn more: [{}]({}) \n\nsource: [{}]({})".format(
+                    quote.title, (url[:20] + '...') if len(url) > 21 else url, url, tag, shortlink)
                 log.info(msg)
-                distracto_bot.send_message(chat_id, msg, parse_mode=telegram.ParseMode.MARKDOWN, disable_web_page_preview=True)
+                distracto_bot.send_message(
+                    chat_id, msg, parse_mode=telegram.ParseMode.MARKDOWN, disable_web_page_preview=True)
                 ContentItemStat.add_statistic(user, quote)
                 return shortlink
             if is_image(url):
                 log.debug("condition 4.2")
-                distracto_bot.send_photo(chat_id, url, caption="{} - {}".format(quote.title, shortlink))
+                distracto_bot.send_photo(
+                    chat_id, url, caption="{} - {}".format(quote.title, shortlink))
                 ContentItemStat.add_statistic(user, quote)
                 return shortlink
-        
-        # we have no body and no pictures/videos , something like AskReddit so the comments are important        
-        if payload.get('comments', False):      
-            log.info("condition 5")      
+
+        # we have no body and no pictures/videos , something like AskReddit so the comments are important
+        if payload.get('comments', False):
+            log.info("condition 5")
             comments = payload.get('comments')
             t = []
             for value in comments:
-                t.append(emoji.emojize("\n:thought_balloon:")+" {} - {}".format(value, comments[value]))
-            msg = "========================\n*{}* \n======================== \n{} \n[{}]({})".format(quote.title, "\n".join(t),tag, payload.get('original_url','https://reddit.com'))
+                t.append(emoji.emojize("\n:thought_balloon:") +
+                         " {} - {}".format(value, comments[value]))
+            msg = "========================\n*{}* \n======================== \n{} \n[{}]({})".format(
+                quote.title, "\n".join(t), tag, payload.get('original_url', 'https://reddit.com'))
             distracto_bot.send_message(
-                    chat_id, msg, disable_web_page_preview=True,parse_mode=telegram.ParseMode.MARKDOWN)
+                chat_id, msg, disable_web_page_preview=True, parse_mode=telegram.ParseMode.MARKDOWN)
             ContentItemStat.add_statistic(user, quote)
             return shortlink
             # build comment block
@@ -232,13 +260,24 @@ def send_random_quote(chat_id=None, tag=None):
         # we have title + body saved
         title = quote.title
         text = payload.get('text', None)
-        msg = "========================\n*{}* \n======================== \n{} \n[{}]({})".format(title, text,tag, shortlink)        
+        msg = "========================\n*{}* \n======================== \n{} \n[{}]({})".format(
+            title, text, tag, shortlink)
         distracto_bot.send_message(
-            chat_id, msg, parse_mode=telegram.ParseMode.MARKDOWN,disable_web_page_preview=True)
+            chat_id, msg, parse_mode=telegram.ParseMode.MARKDOWN, disable_web_page_preview=True)
         ContentItemStat.add_statistic(user, quote)
         return shortlink
-    
+
 ###############################################################################
 
-if __name__ == '__main__':
-    run_full_update()
+@celery.task
+def send_bot_message(chat_id, messageText):
+    distracto_bot.send_message(chat_id, messageText, disable_web_page_preview=True)
+
+@celery.task
+def send_system_message(subject, plainTextMessage=None, email=False, send_to_bot=True):
+    if send_to_bot:
+        send_bot_message(ADMIN_CHAT_ID, subject)
+    if email:
+        send_email.delay(TASK_NOTIFICATION_EMAIL, subject,
+                         "Nothing here." if plainTextMessage is None else plainTextMessage, True)
+    log.info("{} \t {}".format(subject, plainTextMessage))

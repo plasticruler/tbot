@@ -11,7 +11,7 @@
         Viewing {{user.email}}
     </h2>         
     <div class="row">
-        <form class="col s12">
+        <form class="col s12" action="{{url_for('main.userprofile',userid=user.id)}}" method='POST'>
             <div class="row">
                 <div class="col s6">  
                     <input class="input" type="text" name="topic" placeholder="subreddit name">
@@ -39,9 +39,9 @@
             </theader>
             {%for r in subscriptions%}
             <tr>
-              <td>{{r.content.value}}</td>
-              <td><a href="{{url_for('main.userprofile',userid=r.id)}}?action=delete"><i class="material-icons red-text">delete</i></a></td> 
-              <td><a href="{{url_for('main.userprofile',userid=r.id)}}?action=random"><i class="material-icons green-text">email</i></a></td> 
+              <td>{{r.keyvalue_entry.value}}</td>
+              <td><a href="{{url_for('main.userprofile',userid=user.id)}}?action=delete&id={{r.id}}"><i class="material-icons red-text">delete</i></a></td> 
+              <td><a href="{{url_for('main.userprofile',userid=user.id)}}?action=random&id={{r.id}}"><i class="material-icons green-text">email</i></a></td> 
             </tr>
             {%endfor%}
             

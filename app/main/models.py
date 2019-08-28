@@ -229,13 +229,16 @@ class KeyValueEntry(BaseModel):
     key_id = db.Column(db.Integer, db.ForeignKey(
         'key.id'), nullable=False)
     value = db.Column(db.String(50), nullable=False)
-
+    
     @classmethod
-    def find_by_key_value(cls, key, value):
-        k = Key.find_by_name(key)
-        if k is None:
-            return None
-        return KeyValueEntry.query.filter_by(key_id=k.id, value=value).first()
+    def create_or_return(cls, key, value):
+        kv = KeyValueEntry.query.filter_by(key_id = key.id,value = value).first()        
+        if not kv:            
+            kv = KeyValueEntry()
+            kv.key_id = key.id
+            kv.value = value
+            kv.save_to_db()
+        return kv
 
     @classmethod
     def get_by_key(cls, key):
@@ -261,16 +264,32 @@ class ContentStats(BaseModel):
 class UserSubscription(BaseModel):
     __tablename__ = 'user_subscriptions'
     user_id = db.Column(db.Integer(), db.ForeignKey('users.id', ondelete='CASCADE'))
-    content_id = db.Column(db.Integer(), db.ForeignKey('keyvalue_entry.id'))
-    content = db.relationship('KeyValueEntry', backref='user_subscriptions')
     user = db.relationship('User', backref='user_subscriptions')
+    keyvalue_entry_id = db.Column(db.Integer(), db.ForeignKey('keyvalue_entry.id'))
+    keyvalue_entry = db.relationship('KeyValueEntry', backref='user_subscriptions')
+    user = db.relationship('User', backref='user_subscriptions')
+    
     @classmethod
-    def get_by_id_for_user(cls, id, user_id):
-        return UserSubscription.query.filter_by(id=id).filter_by(user_id=user_id).first()
+    def is_user_subscribed_to_key(cls, user_id, key_id):
+        r = UserSubscription.query.filter_by(user_id = user_id, keyvalue_entry_id = key_id).first()    
+        return r is not None
+    @classmethod
+    def get_by_id_for_user(cls, id,user_id):
+        return UserSubscription.query.filter_by(id=id, user_id=user_id).first()
+    @classmethod
+    def create_subscription(cls, user_id, topic):
+        key = Key.find_by_name('sr_media') #legacy
+        kv = KeyValueEntry.create_or_return(key, topic)                
+        sub = UserSubscription.is_user_subscribed_to_key(user_id, kv.id)
+        if not sub:                        
+            subs = UserSubscription()
+            subs.user_id = user_id
+            subs.keyvalue_entry_id = kv.id
+            subs.save_to_db()                          
     @classmethod
     def get_by_user(cls, user_id):
         return UserSubscription.query.join(KeyValueEntry).filter(UserSubscription.user_id==user_id).order_by(KeyValueEntry.value)
     def __repr__(self):
-        return "{}".format(self.content.value)        
+        return "<UserSubscription {} - {}>".format(self.id, self.keyvalue_entry.value)        
 
 
