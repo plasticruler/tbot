@@ -195,8 +195,8 @@ def send_random_quote(chat_id=None, tag=None):
     shortlink = payload.get('shortlink')
     url = payload.get('url', '')
     log.info(quote.data)
-    if payload.get('over_18', False) and not user.over_18_allowed:  # not allowed
-        send_random_quote(chat_id)
+    if ("nsfw" in quote.title.lower() or payload.get('over_18', False)) and not user.over_18_allowed:  # not allowed
+        send_random_quote(chat_id, tag)
         return shortlink
     if len(payload.get('text', "").strip()) == 0:  # handle title only
         if not payload.get('is_photo', True) and not payload.get('is_video', True):
@@ -225,8 +225,7 @@ def send_random_quote(chat_id=None, tag=None):
             if not url.startswith('https://v.redd.it'):
                 log.debug("condition 4.1")
                 msg = "{} \nLearn more: [{}]({}) \n\nsource: [{}]({})".format(
-                    quote.title, (url[:20] + '...') if len(url) > 21 else url, url, tag, shortlink)
-                log.debug(msg)
+                    quote.title, (url[:20] + '...') if len(url) > 21 else url, url, tag, shortlink)                
                 distracto_bot.send_message(
                     chat_id, msg, parse_mode=telegram.ParseMode.MARKDOWN, disable_web_page_preview=True)
                 ContentItemStat.add_statistic(user, quote)
@@ -244,7 +243,7 @@ def send_random_quote(chat_id=None, tag=None):
             comments = payload.get('comments')
             t = []
             for value in comments:
-                t.append(emoji.emojize("\n:thought_balloon:") +
+                t.append("\n" + emoji.emojize(":bust_in_silhouette:") +
                          " {} - {}".format(value, comments[value]))
             msg = "========================\n*{}* \n======================== \n{} \n[{}]({})".format(
                 quote.title, "\n".join(t), tag, payload.get('original_url', 'https://reddit.com'))
@@ -253,7 +252,8 @@ def send_random_quote(chat_id=None, tag=None):
             ContentItemStat.add_statistic(user, quote)
             return shortlink
             # build comment block
-        send_random_quote(chat_id)
+        send_system_message.delay("Could not identify item. {}".format(shortlink))
+        send_random_quote(chat_id, tag) #could not identify item
     else:
         # we have title + body saved
         title = quote.title
@@ -274,7 +274,7 @@ def send_bot_message(chat_id, messageText):
 @celery.task
 def send_system_message(subject, plainTextMessage=None, email=False, send_to_bot=True):
     if send_to_bot:
-        send_bot_message(ADMIN_CHAT_ID, subject)
+        send_bot_message(ADMIN_CHAT_ID, emoji.emojize(":exclamation:") + " " + subject)
     if email:
         send_email.delay(TASK_NOTIFICATION_EMAIL, subject,
                          "Nothing here." if plainTextMessage is None else plainTextMessage, True)
