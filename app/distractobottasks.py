@@ -182,7 +182,7 @@ def send_random_quote(chat_id=None, tag=None):
     if not tag:            
         subs = UserSubscription.get_by_user(user.id) #can refactor to send only 1
         tag = random.choice([t.keyvalue_entry.value for t in subs])
-    quote = ContentItem.return_random_by_tags([tag]])
+    quote = ContentItem.return_random_by_tags([tag])
     if quote is None and user is not None:
         distracto_bot.send_message(chat_id=chat_id, text="You have no subscriptions. Are you registered?")
         send_system_message("User has not subscriptions. User will be disabled. {}".format(user.id))
