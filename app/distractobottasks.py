@@ -224,8 +224,8 @@ def send_random_quote(chat_id=None, tag=None):
             url = payload.get('url')
             if not url.startswith('https://v.redd.it'):
                 log.debug("condition 4.1")
-                msg = "{} \nLearn more: [{}]({}) \n\nsource: [{}]({})".format(
-                    quote.title, (url[:20] + '...') if len(url) > 21 else url, url, tag, shortlink)                
+                msg = "{} \nLearn more: [{}]({}) \n\nsource: [{} / {}]({})".format(
+                    quote.title, (url[:20] + '...') if len(url) > 21 else url, url, tag, shortlink, shortlink)                
                 distracto_bot.send_message(
                     chat_id, msg, parse_mode=telegram.ParseMode.MARKDOWN, disable_web_page_preview=True)
                 ContentItemStat.add_statistic(user, quote)
@@ -245,8 +245,8 @@ def send_random_quote(chat_id=None, tag=None):
             for value in comments:
                 t.append("\n" + emoji.emojize(":bust_in_silhouette:") +
                          " {} - {}".format(value, comments[value]))
-            msg = "========================\n*{}* \n======================== \n{} \n[{}]({})".format(
-                quote.title, "\n".join(t), tag, payload.get('original_url', 'https://reddit.com'))
+            msg = "========================\n*{}* \n======================== \n{} \n[{} / {}]({})".format(
+                quote.title, "\n".join(t), tag, shortlink, payload.get('original_url', 'https://reddit.com'))
             distracto_bot.send_message(
                 chat_id, msg, disable_web_page_preview=True, parse_mode=telegram.ParseMode.MARKDOWN)
             ContentItemStat.add_statistic(user, quote)
@@ -258,8 +258,8 @@ def send_random_quote(chat_id=None, tag=None):
         # we have title + body saved
         title = quote.title
         text = payload.get('text', None)
-        msg = "========================\n*{}* \n======================== \n{} \n[{}]({})".format(
-            title, text, tag, shortlink)
+        msg = "========================\n*{}* \n======================== \n{} \n[{} / {}]({})".format(
+            title, text, tag, shortlink, shortlink)
         distracto_bot.send_message(
             chat_id, msg, parse_mode=telegram.ParseMode.MARKDOWN, disable_web_page_preview=True)
         ContentItemStat.add_statistic(user, quote)
