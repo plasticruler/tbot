@@ -299,6 +299,6 @@ class UserSubscription(BaseModel):
             subs.save_to_db()                          
     @classmethod
     def get_by_user(cls, user_id):
-        return UserSubscription.query.join(KeyValueEntry).filter(UserSubscription.user_id==user_id).order_by(KeyValueEntry.value)
+        return UserSubscription.query.join(KeyValueEntry).filter(UserSubscription.user_id==user_id).order_by(KeyValueEntry.value)    
     def __repr__(self):
         return "<UserSubscription {} - {}>".format(self.id, self.keyvalue_entry.value)       

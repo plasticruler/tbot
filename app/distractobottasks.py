@@ -161,7 +161,7 @@ def send_system_broadcast(chat_id):
     if random.random() < 0.006:  # once every 158 scheduled posts
         n = Notification.query.first()
         if n:
-            distracto_bot.send_message(chat_id=chat_id, message="*{}* \n{}".format(n.title, n.text))
+            distracto_bot.send_message(chat_id=chat_id, text="*{}* \n{}".format(n.title, n.text))
             return True
     return False
 
@@ -274,7 +274,7 @@ def send_bot_message(chat_id, messageText):
 @celery.task
 def send_system_message(subject, plainTextMessage=None, email=False, send_to_bot=True):
     if send_to_bot:
-        send_bot_message(app.config['ADMIN_CHAT_ID'], emoji.emojize(":exclamation:") + " " + subject)
+        send_bot_message(app.config['ADMIN_CHAT_ID'], emoji.emojize(":exclamation: " + subject))
     if email:
         send_email.delay(app.config['NOTIFICATIONS_RECIPIENT_EMAIL'], subject,
                          "Nothing here." if plainTextMessage is None else plainTextMessage, True)
