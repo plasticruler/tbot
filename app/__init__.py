@@ -24,6 +24,7 @@ import matplotlib.pyplot as plt
 from app.config import Config
 import json
 import telebot
+import telegram
 import redis
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Bot
 from flask_session import Session
@@ -47,7 +48,9 @@ db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
 bot = telebot.TeleBot(app.config['BOT_API_KEY'],threaded=False, skip_pending=True)
-distracto_bot = Bot(token=app.config['DISTRACTOBOT_API_KEY'])
+
+distractobot = telegram.Bot(token=app.config['DISTRACTOBOT_API_KEY']) 
+yebogrambot = telegram.Bot(token=app.config['YEBOGRAMBOT_API_KEY'])
 
 #flask mail
 mail = Mail(app)
@@ -72,6 +75,8 @@ def make_celery(app):
                 return TaskBase.__call__(self, *args, **kwargs)
     celery.Task = ContextTask
     return celery 
+
+celery = make_celery(app)
 
 from app.auth.routes import auth as auth_blueprint
 app.register_blueprint(auth_blueprint)
@@ -98,33 +103,44 @@ app.security = Security(app, user_datastore)
 
 #tasks
 from app.tasks import process_shareprice_data
-from app.distractobottasks import send_content
-
-#bot handlers
-from app.botcontrol import handlers
 
 
 @login_manager.user_loader
 def load_user(user_id):    
     return User.query.get(int(user_id))
 
-
 @app.before_first_request
 def create_user():
     db.create_all() 
 
-from app.main.models import Bot_Quote, ContentItem
-import json
-from app.distractobottasks import run_full_update
-@app.cli.command()
-@with_appcontext
-def runfullupdate():
-    run_full_update()    
-    pass
 # cli click commands
 @app.cli.command()
 @with_appcontext
 def processsharepricedata():
     process_shareprice_data.delay()
 
-
+import json
+from app.auth.models import User
+@app.cli.command()
+@with_appcontext
+def importusers():
+    t = ""
+    users = {}
+    with open("/home/romeo/users.json") as f:
+        t = f.read()
+        users = json.loads(t)
+    for user in users:
+        print(user)
+        u = User()
+        u.id = user.get('id')
+        u.email = user.get('email')
+        u.password = user.get('password')
+        u.note = user.get('note')
+        u.over_18_allowed = user.get('over_18_allowed')
+        u.active = user.get('active')
+        u.bot_id = user.get('bot_id')
+        u.chat_id = user.get('chat_id')
+        u.subscriptions_active = user.get('subscriptions_active')
+        u.user_type = user.get('user_type')
+        u.utc_offset = user.get('utc_offset')
+        u.save_to_db()

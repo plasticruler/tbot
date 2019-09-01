@@ -25,9 +25,9 @@ from app.utils import get_prices_from_sn_source
 import matplotlib.pyplot as plt
 import traceback
 
-
 from flask_mail import Message, Mail
-from app import mail
+from app import mail, celery
+
 TASK_NOTIFICATION_EMAIL = app.config['NOTIFICATIONS_RECIPIENT_EMAIL']
 MAIL_USERNAME = app.config['MAIL_USERNAME']
 MAIL_PASSWORD = app.config['MAIL_PASSWORD']
@@ -42,7 +42,7 @@ HOST_LOCATION = app.config['HOST_LOCATION']
 ADMIN_CHAT_ID = app.config['ADMIN_CHAT_ID']
 MAIL_SENDER = app.config['MAIL_DEFAULT_SENDER']
 
-celery = make_celery(app)
+
 
 
 class IllegalArgumentError(ValueError):
@@ -112,9 +112,6 @@ def get_youtube_download_options():
         'progress_hooks': [download_hook],
     }
     return options
-
-
-celery = make_celery(app)
 ##############################
 
 def fakeMessage(chat_id, message_id):

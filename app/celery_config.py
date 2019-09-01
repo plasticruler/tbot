@@ -11,7 +11,11 @@ class CeleryConfig(object):
     CELERYBEAT_SCHEDULE = {          
         'send_to_subscribers_on_distractobot': {
             'task': 'app.distractobottasks.send_content',
-            'schedule': crontab(minute="0", day_of_week="mon,tue,wed,thu,fri")
+            'schedule': crontab(minute="6-21", day_of_week="mon,tue,wed,thu,fri")
+        },
+        'send_to_channels_on_distractobot': {
+            'task': 'app.distractobottasks.send_channel_content',
+            'schedule': crontab(minute="0", day_of_week="mon,tue,wed,thu,fri,sat,sun")
         },
         'download-share-data': {
             'task': 'app.tasks.download_share_prices',

@@ -7,8 +7,8 @@ from flask_security import UserMixin, RoleMixin
 
 
 roles_users = db.Table('roles_users',
-    db.Column('user_id', db.Integer(), db.ForeignKey('users.id')),
-    db.Column('role_id', db.Integer(), db.ForeignKey('roles.id')))
+    db.Column('user_id', db.BigInteger(), db.ForeignKey('users.id')),
+    db.Column('role_id', db.BigInteger(), db.ForeignKey('roles.id')))
 
 class Role(BaseModel, RoleMixin):
     __tablename__ = 'roles'
@@ -25,7 +25,7 @@ class User(BaseModel, UserMixin):
     active = db.Column(db.Boolean, default=False, nullable=False)
     roles = db.relationship('Role', secondary=roles_users, backref=db.backref('users', lazy='dynamic'))
     confirmation_code = db.Column(db.String(10), default=generate_random_confirmation_code())
-    chat_id = db.Column(db.Integer(), unique=True)
+    chat_id = db.Column(db.String(20), unique=True)
     subscriptions_active = db.Column(db.Boolean, default=False)
     last_seen_ip_address = db.Column(db.String(128))
     note = db.Column(db.String(200))

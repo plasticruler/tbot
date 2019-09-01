@@ -4,10 +4,9 @@ import os
 import requests
 import emoji
 import datetime
-from app import app, make_celery, log, distracto_bot, mail
+from app import app, make_celery, log, mail
 from app.main.models import ContentStats, UserSubscription, ContentItem, ContentTag, KeyValueEntry, Notification, ContentItemStat
 from app.auth.models import User
-from app.tasks import send_email
 import time
 import random
 import datetime
@@ -15,26 +14,16 @@ import re
 import traceback
 from app.rbot import reddit
 from app.utils import get_md5
-from app import log, db
+from app import log, db, distractobot
 import telegram
 from MySQLdb._exceptions import IntegrityError
 from sqlalchemy.exc import InvalidRequestError
+from app.commontasks import send_system_message
 
 celery = make_celery(app)
 
-
 def getsubmissionbyid(id):
     return reddit.submission(id)
-
-
-def run_full_update():
-    keys = KeyValueEntry.query.all()
-    for key in keys:
-        send_email("mailbox@a20.co.za", "{} started ".format(
-            key.value), "nothing to see", deletable=True)
-        update_reddit(key.value, 300)
-        send_email("mailbox@a20.co.za", "{} completed ".format(
-            key.value), "nothing to see", deletable=True)
 
 def mass_add():
     active_user_id = [u.id for u in User.query.filter(
@@ -123,11 +112,14 @@ def update_reddit(subname, limit=1000):
             db.session.rollback()
             pass
 
+@celery.task
+def send_channel_content():
+    send_content(2)
 
 @celery.task
-def send_content():
+def send_content(user_type=0):
     active_chat_ids = [u.chat_id for u in User.query.filter(
-        User.active == True, User.subscriptions_active == True)]
+        User.active == True, User.subscriptions_active == True, User.user_type == user_type)]
     for u in active_chat_ids:
         try:
             send_random_quote(u)
@@ -137,23 +129,10 @@ def send_content():
             user.subscriptions_active = False
             user.note = "{} - {}".format(user.note, "Unauthorized error")
             user.save_to_db()  
-            send_system_message("A user bailed on us!",traceback.format_exc(),True, True)          
+            send_system_message(distractobot, "A user bailed on us!",traceback.format_exc(),True, True)          
         except Exception as e:
             log.debug(traceback.format_exc())
-            send_system_message("Exception during send_content!",traceback.format_exc(),True, True)          
-
-
-@celery.task
-def send_email(to, subject, plaintextMessage, deletable=True):
-    subject = "{} {}".format(subject, " <deletable>") if deletable else subject
-    try:
-        receiver_email = to
-        message = "Subject: {} \n\n {}".format(subject, plaintextMessage)
-        msg = mail.send_message(subject, body=plaintextMessage,
-                                sender=app.config['MAIL_DEFAULT_SENDER'], recipients=to.split(','))
-        log.debug("Email with subject '{}' sent to {}.".format(subject, to))
-    except Exception as e:
-        log.debug(e)
+            send_system_message(distractobot, "Exception during send_content!",traceback.format_exc(),True, True)          
 
 
 @celery.task
@@ -161,7 +140,7 @@ def send_system_broadcast(chat_id):
     if random.random() < 0.006:  # once every 158 scheduled posts / #number of users
         n = Notification.query.first()
         if n:
-            distracto_bot.send_message(chat_id=chat_id, text="*{}* \n{}".format(n.title, n.text),parse_mode=telegram.ParseMode.MARKDOWN, disable_web_page_preview=True )
+            distractobot.send_message(chat_id=chat_id, text="*{}* \n{}".format(n.title, n.text),parse_mode=telegram.ParseMode.MARKDOWN, disable_web_page_preview=True )
             return True
     return False
 
@@ -185,8 +164,8 @@ def send_random_quote(chat_id=None, tag=None):
         tag = random.choice([t.keyvalue_entry.value for t in subs])
     quote = ContentItem.return_random_by_tags([tag])
     if quote is None and user is not None:
-        distracto_bot.send_message(chat_id=chat_id, text="You have no subscriptions. Are you registered?")
-        send_system_message("User has not subscriptions. User will be disabled. {}".format(user.id))
+        distractobot.send_message(chat_id=chat_id, text="You have no subscriptions. Are you registered?")
+        send_system_message(distractobot, "User has not subscriptions. User will be disabled. {}".format(user.id))
         user.subscriptions_active = False
         user.save_to_db()
         return "No subscriptions found for user."
@@ -202,19 +181,19 @@ def send_random_quote(chat_id=None, tag=None):
         if not payload.get('is_photo', True) and not payload.get('is_video', True):
             log.debug("condition 1")
             # no body so likely something like TIL or showerthoughts
-            distracto_bot.send_message(
+            distractobot.send_message(
                 chat_id, "{} \n{}".format(quote.title, shortlink), disable_web_page_preview=True)
             ContentItemStat.add_statistic(user, quote)
             return shortlink
         if payload.get('is_photo', False) or is_image(url):  # is photo
             log.debug("condition 2")
-            distracto_bot.send_photo(chat_id, payload.get(
+            distractobot.send_photo(chat_id, payload.get(
                 'url'), caption="{} - {}".format(quote.title, shortlink))
             ContentItemStat.add_statistic(user, quote)
             return shortlink
         if payload.get('is_video', False):  # is animation
             log.debug("condition 3")
-            distracto_bot.send_animation(chat_id, payload.get(
+            distractobot.send_animation(chat_id, payload.get(
                 'url'), caption="{} - {}".format(quote.title, shortlink))
             ContentItemStat.add_statistic(user, quote)
             return shortlink
@@ -226,13 +205,13 @@ def send_random_quote(chat_id=None, tag=None):
                 log.debug("condition 4.1")
                 msg = "{} \nLearn more: [{}]({}) \n\nsource: [{} / {}]({})".format(
                     quote.title, (url[:20] + '...') if len(url) > 21 else url, url, tag, shortlink, shortlink)                
-                distracto_bot.send_message(
+                distractobot.send_message(
                     chat_id, msg, parse_mode=telegram.ParseMode.MARKDOWN, disable_web_page_preview=True)
                 ContentItemStat.add_statistic(user, quote)
                 return shortlink
             if is_image(url):
                 log.debug("condition 4.2")
-                distracto_bot.send_photo(
+                distractobot.send_photo(
                     chat_id, url, caption="{} - {}".format(quote.title, shortlink))
                 ContentItemStat.add_statistic(user, quote)
                 return shortlink
@@ -247,12 +226,12 @@ def send_random_quote(chat_id=None, tag=None):
                          " {} - {}".format(value, comments[value]))
             msg = "========================\n*{}* \n======================== \n{} \n[{} / {}]({})".format(
                 quote.title, "\n".join(t), tag, shortlink, payload.get('original_url', 'https://reddit.com'))
-            distracto_bot.send_message(
+            distractobot.send_message(
                 chat_id, msg, disable_web_page_preview=True, parse_mode=telegram.ParseMode.MARKDOWN)
             ContentItemStat.add_statistic(user, quote)
             return shortlink
             # build comment block
-        send_system_message.delay("Could not identify item. {}".format(shortlink))
+        send_system_message(distractobot, "Could not identify item. {}".format(shortlink))
         send_random_quote(chat_id, tag) #could not identify item
     else:
         # we have title + body saved
@@ -260,22 +239,10 @@ def send_random_quote(chat_id=None, tag=None):
         text = payload.get('text', None)
         msg = "========================\n*{}* \n======================== \n{} \n[{} / {}]({})".format(
             title, text, tag, shortlink, shortlink)
-        distracto_bot.send_message(
+        distractobot.send_message(
             chat_id, msg, parse_mode=telegram.ParseMode.MARKDOWN, disable_web_page_preview=True)
         ContentItemStat.add_statistic(user, quote)
         return shortlink
 
 ###############################################################################
 
-@celery.task
-def send_bot_message(chat_id, messageText):
-    distracto_bot.send_message(chat_id, messageText, disable_web_page_preview=True)
-
-@celery.task
-def send_system_message(subject, plainTextMessage=None, email=False, send_to_bot=True):
-    if send_to_bot:
-        send_bot_message(app.config['ADMIN_CHAT_ID'], emoji.emojize(":exclamation: {}".format(subject)))
-    if email:
-        send_email.delay(app.config['NOTIFICATIONS_RECIPIENT_EMAIL'], subject,
-                         "Nothing here." if plainTextMessage is None else plainTextMessage, True)
-    log.info("{} \t {}".format(subject, plainTextMessage))

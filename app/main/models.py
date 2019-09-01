@@ -6,18 +6,18 @@ import timeago
 
 # https://stackoverflow.com/questions/21292726/how-to-properly-use-association-proxy-and-ordering-list-together-with-sqlalchemy
 tags = db.Table('tag_associations',
-                db.Column('tag_id', db.Integer, db.ForeignKey('tag.id')),
-                db.Column('bot_quote_id', db.Integer, db.ForeignKey('bot_quote.id')))
+                db.Column('tag_id', db.BigInteger(), db.ForeignKey('tag.id')),
+                db.Column('bot_quote_id', db.BigInteger(), db.ForeignKey('bot_quote.id')))
 
 content_tags = db.Table('contenttag_associations',
-        db.Column('contenttag_id', db.Integer, db.ForeignKey('ContentTag.id')),
-        db.Column('contentitem_id', db.Integer, db.ForeignKey('ContentItem.id')))        
+        db.Column('contenttag_id', db.BigInteger(), db.ForeignKey('ContentTag.id')),
+        db.Column('contentitem_id', db.BigInteger(), db.ForeignKey('ContentItem.id')))        
 
 class Notification(BaseModel):
     __tablename__ = "Notification"
     title = db.Column(db.Text())
     text = db.Column(db.Text())
-    category_id = db.Column(db.Integer)
+    category_id = db.Column(db.BigInteger())
     active_from = db.Column(db.DateTime, default=datetime.datetime.now)
 
 class ContentItem(BaseModel):
@@ -50,8 +50,8 @@ class ContentItem(BaseModel):
 
 class ContentItemStat(BaseModel):
     __tablename__ = 'ContentItemStat'
-    user_id = db.Column(db.Integer(), db.ForeignKey('users.id'))
-    contentitem_id = db.Column(db.Integer(), db.ForeignKey('ContentItem.id'))
+    user_id = db.Column(db.BigInteger(), db.ForeignKey('users.id'))
+    contentitem_id = db.Column(db.BigInteger(), db.ForeignKey('ContentItem.id'))
 
     @staticmethod
     def get_top_stats(limitby=10):
@@ -147,7 +147,7 @@ class Bot_MessageInbound(BaseModel):
 
 class SelfLog(BaseModel):
     __tablename__ = 'log_self'
-    chat_id = db.Column(db.Integer, nullable=False)
+    chat_id = db.Column(db.BigInteger(), nullable=False)
     message = db.Column(db.String(512))
 
     def __repr__(self):
@@ -262,7 +262,7 @@ class KeyValueEntry(BaseModel):
         return '<KeyValueEntry {}-{}>'.format(self.key.name, self.value)
 class ContentStats(BaseModel):
     __tablename__ = 'content_stats'
-    user_id = db.Column(db.Integer(), db.ForeignKey('users.id'))
+    user_id = db.Column(db.BigInteger(), db.ForeignKey('users.id'))
     quote_id = db.Column(db.Integer(), db.ForeignKey('bot_quote.id'))    
 
     @classmethod
@@ -274,7 +274,7 @@ class ContentStats(BaseModel):
 
 class UserSubscription(BaseModel):
     __tablename__ = 'user_subscriptions'
-    user_id = db.Column(db.Integer(), db.ForeignKey('users.id', ondelete='CASCADE'))
+    user_id = db.Column(db.BigInteger(), db.ForeignKey('users.id', ondelete='CASCADE'))
     user = db.relationship('User', backref='user_subscriptions')
     keyvalue_entry_id = db.Column(db.Integer(), db.ForeignKey('keyvalue_entry.id'))
     keyvalue_entry = db.relationship('KeyValueEntry', backref='user_subscriptions')
@@ -302,3 +302,6 @@ class UserSubscription(BaseModel):
         return UserSubscription.query.join(KeyValueEntry).filter(UserSubscription.user_id==user_id).order_by(KeyValueEntry.value)    
     def __repr__(self):
         return "<UserSubscription {} - {}>".format(self.id, self.keyvalue_entry.value)       
+
+
+

@@ -10,47 +10,23 @@ import re
 import datetime
 import json
 
-from app import app, log
-from app import redis_instance, make_celery, distracto_bot
+from app import app, log, redis_instance, distractobot
 from app.auth.models import User, Role
 from app.main.models import UserSubscription, ContentStats, Bot_Quote, KeyValueEntry, ContentItemStat
 from app.utils import generate_random_confirmation_code
-from app.distractobottasks import send_random_quote, send_email
-from app.tasks import update_reddit_subs_using_payload
-from functools import wraps
+
 import traceback
 import random
 from uuid import uuid4
 from emoji import emojize
+from app.commontasks import send_system_message, role_required, send_typing_action, error_callback, get_chat_id
+from app.distractobottasks import send_random_quote, update_reddit #send_random_quote has a dep on bot
 
 EMAIL_REGEX = "^([a-zA-Z0-9_\-\.]+)@([a-zA-Z0-9_\-\.]+)\.([a-zA-Z]{2,5})$"
 
 GET_EMAIL_ANSWER, GET_EMAIL, ACTIVATE = range(3)
 
 email = None
-
-celery = make_celery(app)
-
-def send_typing_action(func):
-    """Sends typing action while processing func command."""
-    @wraps(func)
-    def command_func(update, context, *args, **kwargs):
-        context.bot.send_chat_action(chat_id=update.effective_message.chat_id, action=ChatAction.TYPING)        
-        return func(update, context,  *args, **kwargs)
-    return command_func
-
-def role_required(required_role):
-    def inner_function(f):        
-        @wraps(f)
-        def wrapper(update, context, *args, **kwargs):
-            chat_id = update.effective_message.chat_id        
-            user = User.find_by_chatid(chat_id)
-            if required_role in user.roles:
-                return f(update, context, *args, **kwargs)
-            else:
-                return update.message.reply_text("You do not have a required role to perform that action.".format(required_role))
-        return wrapper
-    return inner_function
 
 @send_typing_action
 def start(update, context):
@@ -63,7 +39,7 @@ def start(update, context):
     update.message.reply_text(message, reply_markup=reply_markup)
 
 @send_typing_action
-def send_now(update, context):
+def send_now(update, context): #-1001331321081
     chat_id = get_chat_id(update)
     if user_exists(chat_id=chat_id):
         log.info('Sending /sendnow to {}'.format(chat_id))
@@ -150,7 +126,7 @@ def viewsubscriptions(update, context):
     user = User.find_by_chatid(get_chat_id(update))
     chat_id = get_chat_id(update)    
     if user is None:
-        distracto_bot.send_message(chat_id=chat_id,text="You are not registered.")
+        distractobot.send_message(chat_id=chat_id,text="You are not registered.")
         return    
     subs = UserSubscription.get_by_user(user.id)
     rep = "Your subscribed topics are: \n" + "\n".join(["https://www.reddit.com/r/{}".format(s.keyvalue_entry.value) for s in subs])
@@ -189,8 +165,8 @@ def add_subscription(update, context):
 @role_required("admin")
 @send_typing_action
 def trigger_update(update, context):
-    subreddit = update.message.text
-    update_reddit_subs_using_payload.delay(subreddit, "week", 500)
+    subreddit = context.args[0]    
+    update_reddit.delay(subreddit)
 
 @send_typing_action
 def view_status(update, context):        
@@ -262,7 +238,7 @@ def create_activated_user(chat_id, context, email=None, note=None):
         usb.user_id = new_user.id
         usb.content_id = int(content_id)
         usb.save_to_db()
-    send_system_message("New account created! {} Email: '{}'".format(chat_id, new_user.email), True)
+    send_system_message(distractobot, "New account created! {} Email: '{}'".format(chat_id, new_user.email), True)
     context.bot.send_message(chat_id=chat_id, text="Ok, your account has been created and some default topics have been added. View them by sending /viewsubs If you want to view all available topics enter '@DistractoBot <search>'")
     context.bot.send_message(chat_id=chat_id, text="And, to suspend your subscription just send /unsubscribe")
 
@@ -291,15 +267,8 @@ def inlinequery(update, context):
     update.inline_query.answer(results)
 
 
-#################################################################################
+################################################################################# 
 
-def error_callback(update, context):    
-    if context.error == "Results_too_much":
-        send_system_message(err, to_bot=False, also_email=True)    
-        return
-    log.error("Update {} caused error {}".format(update, context.error))        
-    err = traceback.format_exc()
-    send_system_message(err, to_bot=True, also_email=True)    
 @send_typing_action
 def upvotes(update, context):
     keyboard = [[InlineKeyboardButton("Up",callback_data='up'),
@@ -314,17 +283,16 @@ def button(update,context):
 @send_typing_action
 def send_admin(update, context):
     chat_id = get_chat_id(update)
-    send_system_message(" ".join(context.args) + " (from chatid: {})".format(chat_id), True)
+    send_system_message(distractobot, " ".join(context.args) + " (from chatid: {})".format(chat_id), True)
 
-def get_chat_id(update):    
-    return update.effective_message.chat_id
+
     
 
-def send_system_message(text, to_bot=True, also_email=False):
-    if to_bot:
-        distracto_bot.send_message(chat_id=app.config['ADMIN_CHAT_ID'], text="MESSAGE TO ADMIN: {} ".format(text))
+def send_system_message(bot = None, text = None, to_bot=True, also_email=False):
+    if bot and to_bot:
+        bot.send_message(chat_id=app.config['ADMIN_CHAT_ID'], text="MESSAGE TO ADMIN: {} ".format(text))
     if also_email:
-        send_email.delay(app.config['NOTIFICATIONS_RECIPIENT_EMAIL'], "Message to admin", text, deletable=True)
+        bot.delay(app.config['NOTIFICATIONS_RECIPIENT_EMAIL'], "Message to admin", text, deletable=True)
     return
 
 
