@@ -114,7 +114,7 @@ def update_reddit(subname, limit=1000):
 
 @celery.task
 def send_channel_content():
-    send_content(2)
+    send_content(2) #the bot will send to users of type 2 (channels)
 
 @celery.task
 def send_content(user_type=0):
