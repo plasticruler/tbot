@@ -320,7 +320,7 @@ def button(update,context):
             u = i['count']
     
     seenoevil = emojize(f":see_no_evil: {'-' if sno < 0 else ''}{'+' if sno > 0 else ''}{sno}", use_aliases = True)        
-    down = emojize(f":thumbsdown: {'-' if dw < 0 else ''}{'+' if dw > 0 else ''}{dw}", use_aliases = True)   
+    down = emojize(f":thumbsdown: {'-' if dw > 0 else ''}{dw}", use_aliases = True)   
     up = emojize(f":thumbsup: {'-' if u < 0 else ''}{'+' if u > 0 else ''}{u}", use_aliases = True)    
     
     k = InlineKeyboardMarkup([[\
