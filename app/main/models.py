@@ -3,21 +3,22 @@ from app import db
 import random
 import datetime
 import timeago
+import uuid
 
 # https://stackoverflow.com/questions/21292726/how-to-properly-use-association-proxy-and-ordering-list-together-with-sqlalchemy
 tags = db.Table('tag_associations',
-                db.Column('tag_id', db.BigInteger(), db.ForeignKey('tag.id')),
-                db.Column('bot_quote_id', db.BigInteger(), db.ForeignKey('bot_quote.id')))
+                db.Column('tag_id', db.Integer, db.ForeignKey('tag.id')),
+                db.Column('bot_quote_id', db.Integer, db.ForeignKey('bot_quote.id')))
 
 content_tags = db.Table('contenttag_associations',
-        db.Column('contenttag_id', db.BigInteger(), db.ForeignKey('ContentTag.id')),
-        db.Column('contentitem_id', db.BigInteger(), db.ForeignKey('ContentItem.id')))        
+        db.Column('contenttag_id', db.Integer, db.ForeignKey('ContentTag.id')),
+        db.Column('contentitem_id', db.Integer, db.ForeignKey('ContentItem.id')))        
 
 class Notification(BaseModel):
     __tablename__ = "Notification"
     title = db.Column(db.Text())
     text = db.Column(db.Text())
-    category_id = db.Column(db.BigInteger())
+    category_id = db.Column(db.Integer)
     active_from = db.Column(db.DateTime, default=datetime.datetime.now)
 
 class ContentItem(BaseModel):
@@ -48,10 +49,48 @@ class ContentItem(BaseModel):
     def __repr__(self):
         return '<ContentItem {}>'.format(self.title)
 
+class ContentItemInteraction(BaseModel):
+    __tablename__ = 'ContentItemInteraction'    
+    contentitem_id = db.Column(db.Integer, db.ForeignKey('ContentItem.id'))
+    user_id = db.Column(db.Integer)
+    user_name = db.Column(db.String(50))
+    message_id = db.Column(db.Integer)
+    data = db.Column(db.String(60))
+    trace = db.Column(db.String(256))
+    choice = db.Column(db.Integer)
+    
+    @staticmethod
+    def get_interaction_by_id_and_user(message_id, user_id):
+        return ContentItemInteraction.query.filter(ContentItemInteraction.message_id==message_id and ContentItemInteraction.user_id==user_id).first()        
+
+    @staticmethod
+    def delete_interaction_by_id_and_user(message_id, user_id):
+        return ContentItemInteraction.query.filter(ContentItemInteraction.message_id==message_id and ContentItemInteraction.user_id==user_id).delete()        
+    
+    @staticmethod
+    def get_interaction_stats(message_id):
+        interaction_stats = db.engine.execute(f"""select message_id, choice, count(choice) from ContentItemInteraction 
+                                group by message_id
+                                having message_id = {message_id}; """)
+        return [{'message_id':x[0], 'choice':x[1], 'count':x[2]} for x in interaction_stats]        
+    
+    @staticmethod
+    def add_interaction(**kwargs):
+        ci = ContentItemInteraction()
+        ci.contentitem_id = kwargs['contentitem_id']
+        ci.user_id = kwargs['user_id']
+        ci.user_name = kwargs['user_name']
+        ci.data = kwargs['data']        
+        ci.message_id = kwargs['message_id']     
+        ci.choice = kwargs['choice']
+        if 'trace' in kwargs:
+            ci.trace = kwargs['trace']
+        ci.save_to_db()
+
 class ContentItemStat(BaseModel):
     __tablename__ = 'ContentItemStat'
-    user_id = db.Column(db.BigInteger(), db.ForeignKey('users.id'))
-    contentitem_id = db.Column(db.BigInteger(), db.ForeignKey('ContentItem.id'))
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    contentitem_id = db.Column(db.Integer, db.ForeignKey('ContentItem.id'))
 
     @staticmethod
     def get_top_stats(limitby=10):
@@ -75,7 +114,7 @@ class Bot_Quote(BaseModel):
     tags = db.relationship('Tag', secondary=tags, backref='bot_quote')
     text = db.Column(db.String(500))
     content_hash = db.Column(db.String(128)) #the hash of the content item
-    plugin_id = db.Column(db.Integer(), default=1)
+    plugin_id = db.Column(db.Integer, default=1)
     
     @classmethod
     def return_random_by_tags(cls, tag_list):
@@ -147,7 +186,7 @@ class Bot_MessageInbound(BaseModel):
 
 class SelfLog(BaseModel):
     __tablename__ = 'log_self'
-    chat_id = db.Column(db.BigInteger(), nullable=False)
+    chat_id = db.Column(db.String(20), nullable=False)
     message = db.Column(db.String(512))
 
     def __repr__(self):
@@ -262,8 +301,8 @@ class KeyValueEntry(BaseModel):
         return '<KeyValueEntry {}-{}>'.format(self.key.name, self.value)
 class ContentStats(BaseModel):
     __tablename__ = 'content_stats'
-    user_id = db.Column(db.BigInteger(), db.ForeignKey('users.id'))
-    quote_id = db.Column(db.Integer(), db.ForeignKey('bot_quote.id'))    
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    quote_id = db.Column(db.Integer, db.ForeignKey('bot_quote.id'))    
 
     @classmethod
     def add_statistic(cls, user, quote):
@@ -274,9 +313,9 @@ class ContentStats(BaseModel):
 
 class UserSubscription(BaseModel):
     __tablename__ = 'user_subscriptions'
-    user_id = db.Column(db.BigInteger(), db.ForeignKey('users.id', ondelete='CASCADE'))
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'))
     user = db.relationship('User', backref='user_subscriptions')
-    keyvalue_entry_id = db.Column(db.Integer(), db.ForeignKey('keyvalue_entry.id'))
+    keyvalue_entry_id = db.Column(db.Integer, db.ForeignKey('keyvalue_entry.id'))
     keyvalue_entry = db.relationship('KeyValueEntry', backref='user_subscriptions')
     user = db.relationship('User', backref='user_subscriptions')
     

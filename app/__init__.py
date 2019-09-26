@@ -84,6 +84,9 @@ app.register_blueprint(auth_blueprint)
 from app.main.routes import main as main_blueprint
 app.register_blueprint(main_blueprint)
 
+from app.backoffice.routes import backoffice as backoffice_blueprint
+app.register_blueprint(backoffice_blueprint)
+
 login_manager = LoginManager()
 login_manager.login_view = 'auth.login'
 login_manager.init_app(app)
@@ -121,26 +124,18 @@ def processsharepricedata():
 
 import json
 from app.auth.models import User
+from app.main.models import UserSubscription
 @app.cli.command()
 @with_appcontext
 def importusers():
     t = ""
     users = {}
-    with open("/home/romeo/users.json") as f:
+    with open("/home/romeo/user_subs.json") as f:
         t = f.read()
-        users = json.loads(t)
-    for user in users:
+        subs = json.loads(t)
+    for user in subs:
         print(user)
-        u = User()
-        u.id = user.get('id')
-        u.email = user.get('email')
-        u.password = user.get('password')
-        u.note = user.get('note')
-        u.over_18_allowed = user.get('over_18_allowed')
-        u.active = user.get('active')
-        u.bot_id = user.get('bot_id')
-        u.chat_id = user.get('chat_id')
-        u.subscriptions_active = user.get('subscriptions_active')
-        u.user_type = user.get('user_type')
-        u.utc_offset = user.get('utc_offset')
+        u = UserSubscription()
+        u.user_id = user.get('user_id')
+        u.keyvalue_entry_id = user.get('keyvalue_entry_id')        
         u.save_to_db()

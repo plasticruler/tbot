@@ -10,19 +10,22 @@
             integrity="sha256-BbhdlvQf/xTY9gja0Dq3HiwQF8LaCRTXxZKRutelT44="
             crossorigin="anonymous">
     </script>    
+    <script src="https://unpkg.com/vue"></script>
     <!--Import Google Icon Font-->
       <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">      
     <!-- Compiled and minified CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/easy-autocomplete/1.3.5/easy-autocomplete.min.css" 
-    integrity="sha256-fARYVJfhP7LIqNnfUtpnbujW34NsfC4OJbtc37rK2rs=" crossorigin="anonymous" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/easy-autocomplete/1.3.5/easy-autocomplete.min.css"     
+    integrity="sha256-fARYVJfhP7LIqNnfUtpnbujW34NsfC4OJbtc37rK2rs=" crossorigin="anonymous" />    
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/easy-autocomplete/1.3.5/easy-autocomplete.themes.min.css" 
     integrity="sha256-kK9BInVvQN0PQuuyW9VX2I2/K4jfEtWFf/dnyi2C0tQ=" crossorigin="anonymous" />
+    <link rel="stylesheet" href="https://unpkg.com/vue-nav-tabs/themes/vue-tabs.css">
+    <link rel="stylesheet" href="/static/styles.css">
 </head>
 
 <body>
 <ul id="admin_menu" class="dropdown-content">    
-    <li><a href="{{url_for('main.subreddits')}}">Subreddits</a></li>    
+    <li><a href="{{url_for('main.subreddits')}}">Subreddits</a></li> 
     <li><a href="{{url_for('auth.users')}}">Users</a></li>
     <li><a href="{{url_for('main.stats')}}">Stats</a></li>    
     <li><a href="{{url_for('main.system')}}">System</a></li>    
@@ -32,6 +35,9 @@
       <ul class="right hide-on-med-and-down">        
                         <li><a href="{{ url_for('main.index') }}" class="navbar-item">
                                 Home
+                        </a></li>
+                        <li><a href="{{ url_for('backoffice.landing') }}" class="navbar-item">
+                                BackOffice
                         </a></li>
                             
                             {%if current_user.is_authenticated%}

@@ -1,0 +1,34 @@
+<!-- templates/backoffice.html -->
+
+{% extends "base.html" %}
+
+{% block content %}    
+<div class="row">
+    <div class="content">
+        <div id="app">
+        {% raw %}
+
+ <vue-tabs active-tab-color="#e74c3c" 
+           active-text-color="#efefef"           
+           :start-index="1"
+           direction="vertical"
+ >
+    <v-tab
+        v-for="item in chats"
+        v-bind:chat="item"
+        v-bind:title="item.first_name"
+        v-bind:key="item.id">
+            <chat-history v-bind:chats="item"/>
+    </v-tab>
+</vue-tabs>
+
+
+        {% endraw %}            
+        </div>
+    </div>
+</div>
+<script src="https://unpkg.com/vue-nav-tabs/dist/vue-tabs.js"></script>
+<script src="/static/backoffice.js"></script>
+
+{% endblock %}
+

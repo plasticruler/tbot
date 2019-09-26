@@ -9,10 +9,11 @@ import requests
 import re
 import datetime
 import json
+from colorama import Fore, Back, Style
 
 from app import app, log, redis_instance, distractobot
 from app.auth.models import User, Role
-from app.main.models import UserSubscription, ContentStats, Bot_Quote, KeyValueEntry, ContentItemStat
+from app.main.models import UserSubscription, ContentStats, Bot_Quote, KeyValueEntry, ContentItemStat,ContentItemInteraction
 from app.utils import generate_random_confirmation_code
 
 import traceback
@@ -43,7 +44,7 @@ def send_now(update, context): #-1001331321081
     chat_id = get_chat_id(update)
     if user_exists(chat_id=chat_id):
         log.info('Sending /sendnow to {}'.format(chat_id))
-        send_random_quote.delay(chat_id)
+        send_random_quote(chat_id)
     else:
         message = emojize("You need to register for that. Send /register :lock:", use_aliases=True)
         update.message.reply_text(message)
@@ -102,7 +103,7 @@ def activate(update, context):
             return view_status(update, context)
     else:   
         password = generate_random_confirmation_code(10)
-        create_activated_user(chat_id, context, email=get_key(chat_id, "email_value"))
+        create_activated_user(chat_id, context, email="{}@{}".format(chat_id,"none"))
     return ConversationHandler.END
 
 @send_typing_action
@@ -232,12 +233,12 @@ def create_activated_user(chat_id, context, email=None, note=None):
     new_user.user_type = 1
     new_user.save_to_db()
     # add random content    
-    default_subs = [str(x) for x in get_key("SYSTEM_CACHE", "default_subs").split(',')]
-    for content_id in default_subs:
-        usb = UserSubscription()
-        usb.user_id = new_user.id
-        usb.content_id = int(content_id)
-        usb.save_to_db()
+    #default_subs = [str(x) for x in get_key("SYSTEM_CACHE", "default_subs").split(',')]
+    #for content_id in default_subs:
+    #    usb = UserSubscription()
+    #    usb.user_id = new_user.id
+    #    usb.content_id = int(content_id)
+    #    usb.save_to_db()
     send_system_message(distractobot, "New account created! {} Email: '{}'".format(chat_id, new_user.email), True)
     context.bot.send_message(chat_id=chat_id, text="Ok, your account has been created and some default topics have been added. View them by sending /viewsubs If you want to view all available topics enter '@DistractoBot <search>'")
     context.bot.send_message(chat_id=chat_id, text="And, to suspend your subscription just send /unsubscribe")
@@ -253,20 +254,26 @@ def get_content_stats(update, context):
 
 def selectResult(update, context):
     query = update.chosen_inline_result    
-    cid =query.to_dict()["from"]["id"]        
+    cid = query.to_dict()["from"]["id"]        
     context.bot.send_message(chat_id=cid, text="You selected {}".format(query.result_id))    
     send_random_quote.delay(cid, query.result_id)
 
+@send_typing_action
 def inlinequery(update, context):
-    query = update.inline_query.query        
-    values = [value for value in get_key("SYSTEM_CACHE","reddits_list").split(",") if query in value]    
-    results = [InlineQueryResultArticle(
-        id = v,
-        title=v,
-        input_message_content=InputTextMessageContent(v)) for v in values]  
-    update.inline_query.answer(results)
+    update.inline_query.answer("Tapper")
+    #query = update.inline_query.query        
+    #values = [value for value in get_key("SYSTEM_CACHE","reddits_list").split(",") if query in value]    
+    #results = [InlineQueryResultArticle(
+    #    id = v,
+    #    title=v,
+    #    input_message_content=InputTextMessageContent(v)) for v in values]  
+    #update.inline_query.answer(results)
 
-
+def register(update, context):
+    chat_id = get_chat_id(update)    
+    create_activated_user
+    context.bot.send_message(chat_id=chat_id, text="Registration is closed for now. Catch the public channel at https://t.me/randomdistractions Same great content, but you get the chef's choice.")
+    
 ################################################################################# 
 
 @send_typing_action
@@ -276,17 +283,75 @@ def upvotes(update, context):
     reply_markup = InlineKeyboardMarkup(keyboard)
     update.message.reply_text("choose",reply_markup=reply_markup)
     pass
-def button(update,context):
-    query = update.callback_query
-    query.edit_message_text(text="Selected option: {}".format(query.data))
 
+def button(update,context):
+    query = update.callback_query       
+    user_id = update.callback_query.message.chat.id
+    message_id = update.callback_query.message.message_id
+    c = ContentItemInteraction.get_interaction_by_id_and_user(message_id, user_id)        
+    already_voted=False
+    vote_changed=True
+    if c is None: #unanswered
+        data = json.loads(query.data)
+        contentitem_id = data['i']
+        choice = data['q']        
+        user_name = update.callback_query.message.chat.username    
+        ContentItemInteraction.add_interaction(choice=choice, contentitem_id=contentitem_id, user_id=user_id, user_name=user_name, data=json.dumps(data), message_id=message_id)                 
+        pass
+    else:              
+        already_voted=True          
+        d = json.loads(c.data)                
+        if d['q'] == update.callback_query.data:
+            vote_changed=False
+        d['q'] = update.callback_query.data                    
+        ContentItemInteraction.delete_interaction_by_id_and_user(c.message_id, c.user_id)
+        ContentItemInteraction.add_interaction(choice=update.callback_query.data, contentitem_id=c.contentitem_id, user_id=c.user_id, user_name=c.user_name, data=json.dumps(d), message_id=c.message_id)         
+        pass #answered      
+    stats = ContentItemInteraction.get_interaction_stats(message_id)        
+    sno = 0
+    dw = 0
+    u = 0
+    for i in stats:
+        if i['choice']==0:
+            sno = i['count']
+        if i['choice']==1:
+            dw = i['count']
+        if i['choice']==2:
+            u = i['count']
+    
+    seenoevil = emojize(f":see_no_evil: {'-' if sno < 0 else ''}{'+' if sno > 0 else ''}{sno}", use_aliases = True)        
+    down = emojize(f":thumbsdown: {'-' if dw < 0 else ''}{'+' if dw > 0 else ''}{dw}", use_aliases = True)   
+    up = emojize(f":thumbsup: {'-' if u < 0 else ''}{'+' if u > 0 else ''}{u}", use_aliases = True)    
+    
+    k = InlineKeyboardMarkup([[\
+        InlineKeyboardButton(seenoevil,callback_data=0),\
+        InlineKeyboardButton(down,callback_data=1),\
+        InlineKeyboardButton(up,callback_data=2),]])
+    
+    if vote_changed:
+        query.edit_message_reply_markup(inline_message_id=update.callback_query.inline_message_id, reply_markup=k)
+    
+    if not already_voted:
+        distractobot.answerCallbackQuery(query.id, text="Thanks for voting!")
+    else:
+        if vote_changed:
+            distractobot.answerCallbackQuery(query.id, text="Your vote was updated!")
+        else:
+            distractobot.answerCallbackQuery(query.id, text="Ay karamba!")
+
+@send_typing_action
+def vote(update, context):
+    up = emojize(":thumbsup:", use_aliases = True)    
+    down = emojize(":thumbsdown:", use_aliases = True)   
+    seenoevil = emojize(":see_no_evil:", use_aliases = True)    
+    k = InlineKeyboardMarkup([[\
+        InlineKeyboardButton(seenoevil,callback_data='closedeyes'),InlineKeyboardButton(down,callback_data='down'),InlineKeyboardButton(up,callback_data='up'),]])            
+    distractobot.send_photo(chat_id=app.config['ADMIN_CHAT_ID'], photo="https://i.some-random-api.ml/zfU7Q5dabr.jpg", caption="xxx", reply_markup = k)
+    
 @send_typing_action
 def send_admin(update, context):
     chat_id = get_chat_id(update)
-    send_system_message(distractobot, " ".join(context.args) + " (from chatid: {})".format(chat_id), True)
-
-
-    
+    send_system_message(distractobot, " ".join(context.args) + " (from chatid: {})".format(chat_id), True)    
 
 def send_system_message(bot = None, text = None, to_bot=True, also_email=False):
     if bot and to_bot:
@@ -310,6 +375,7 @@ def process_and_save_response(redis_key, key, value):
 
 
 def get_key(redis_key, key):
+    print(redis_key + ":" + key)
     r = redis_instance.hget(redis_key, key).decode('utf-8')    
     return r
 
@@ -338,12 +404,15 @@ def main():
     dp.add_handler(CommandHandler('updatesub',trigger_update))
     dp.add_handler(CommandHandler('about', about))
     dp.add_handler(CommandHandler('help', help))
+    dp.add_handler(CommandHandler('register', register))
+    dp.add_handler(CommandHandler('vote', vote))
     dp.add_handler(InlineQueryHandler(inlinequery))
 
     dp.add_handler(ChosenInlineResultHandler(selectResult))
 
+
     registrationConversation = ConversationHandler(
-        entry_points=[CommandHandler('register', start_registration)],
+        entry_points=[CommandHandler('register786', start_registration)],
         states={
             GET_EMAIL_ANSWER: [RegexHandler('Yes|No', get_email_answer)],
             GET_EMAIL: [RegexHandler(EMAIL_REGEX, get_email),
