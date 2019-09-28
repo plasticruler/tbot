@@ -159,22 +159,22 @@ def get_random_user_tag(chat_id = None):
     subs = UserSubscription.get_by_user(user.id) #can refactor to send only 1        
     return random.choice([t.keyvalue_entry.value for t in subs])
 
-def get_button_data(cid, quantifier, chat_id):
+def get_button_data(content_id, quantifier, chat_id):
     d = json.dumps({                
         'q':quantifier,
         'c':chat_id,
-        'i':cid
+        'i':content_id
     })    
     return d
 
-def get_voting_keyboard(cid, chat_id):
+def get_voting_keyboard(content_id, chat_id):
     seenoevil = emojize(":see_no_evil:", use_aliases = True)        
     down = emojize(":thumbsdown:", use_aliases = True)   
     up = emojize(":thumbsup:", use_aliases = True)    
     k = InlineKeyboardMarkup([[\
-        InlineKeyboardButton(seenoevil,callback_data=get_button_data(cid, 0, chat_id)),\
-        InlineKeyboardButton(down,callback_data=get_button_data(cid, 1, chat_id)),\
-        InlineKeyboardButton(up,callback_data=get_button_data(cid, 2, chat_id)),]])
+        InlineKeyboardButton(seenoevil,callback_data=get_button_data(content_id, 0, chat_id)),\
+        InlineKeyboardButton(down,callback_data=get_button_data(content_id, 1, chat_id)),\
+        InlineKeyboardButton(up,callback_data=get_button_data(content_id, 2, chat_id)),]])
     return k
 
 @celery.task

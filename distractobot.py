@@ -293,28 +293,33 @@ def button(update,context):
     already_voted=False
     vote_changed = True
     choice = 0
+    contentitem_id = None
     if c is None: #unanswered                
-        if ("{" in query.data):
+        if ("{" in query.data): #first person to answer and answer first time answering
             data = json.loads(query.data)
             contentitem_id = data['i']
             choice = data['q']
         else:            
-            contentitem_id = None
+            contentitem_id = None #second+ person to answer
             choice = query.data
         ContentItemInteraction.add_interaction(choice=choice, contentitem_id=contentitem_id, user_id=user_id, user_name=user_name, data=query.data, message_id=message_id)                 
         pass
-    else:              
+    else:       #previous answer found
         already_voted=True          
-        if ("{" in c.data):
-            data = json.loads(c.data)
-            contentitem_id = data['i']
-            choice = data['q']
-        else:            
-            contentitem_id = None
-            choice = query.data
-        vote_changed = choice != update.callback_query.data                    
+        old_choice = None
+        new_choice = None
+        data = ""
+        if ("{" in c.data): 
+            data = json.loads(c.data)            
+            old_choice = data['q'] #the old answer         
+            data['q'] = query.data
+            data = json.dumps(data)            
+        else:                        
+            old_choice = c.data
+            data = query.data                    
+        vote_changed = old_choice != update.callback_query.data 
         c.delete()
-        ContentItemInteraction.add_interaction(choice=update.callback_query.data, contentitem_id=c.contentitem_id, user_id=user_id, user_name=user_name, data=choice, message_id=message_id)         
+        ContentItemInteraction.add_interaction(choice=update.callback_query.data, contentitem_id=c.contentitem_id, user_id=user_id, user_name=user_name, data=data, message_id=message_id)         
         
     stats = ContentItemInteraction.get_interaction_stats(message_id)        
     sno = 0

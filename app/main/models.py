@@ -21,13 +21,15 @@ class Notification(BaseModel):
     category_id = db.Column(db.Integer)
     active_from = db.Column(db.DateTime, default=datetime.datetime.now)
 
+class ContentProvider(BaseModel):
+    __tablename__ = "ContentProvider"
+    name = db.Column(db.String(20), nullable=False)
 class ContentItem(BaseModel):
-    __tablename__ = "ContentItem"   
-    providerid = db.Column(db.String(6), nullable=True) 
+    __tablename__ = "ContentItem"       
     title = db.Column(db.Text())    
     data = db.Column(db.Text())
     content_tags = db.relationship('ContentTag', secondary=content_tags, backref='ContentItem')        
-    content_hash = db.Column(db.String(128), unique=True)
+    content_hash = db.Column(db.String(128), unique=True)    
 
     @classmethod
     def return_random_by_tags(cls, tag_list):
