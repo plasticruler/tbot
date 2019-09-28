@@ -65,12 +65,12 @@ class ContentItemInteraction(BaseModel):
 
     @staticmethod
     def delete_interaction_by_id_and_user(message_id, user_id):
-        return ContentItemInteraction.query.filter(ContentItemInteraction.message_id==message_id and ContentItemInteraction.user_id==user_id).delete()        
+        ContentItemInteraction.query.filter(ContentItemInteraction.message_id==message_id and ContentItemInteraction.user_id==user_id).delete()        
     
     @staticmethod
     def get_interaction_stats(message_id):
-        interaction_stats = db.engine.execute(f"""select message_id, choice, count(choice) from ContentItemInteraction 
-                                group by message_id
+        interaction_stats = db.engine.execute(f"""select message_id, choice, count(choice) cnt from ContentItemInteraction 
+                                group by message_id, choice
                                 having message_id = {message_id}; """)
         return [{'message_id':x[0], 'choice':x[1], 'count':x[2]} for x in interaction_stats]        
     

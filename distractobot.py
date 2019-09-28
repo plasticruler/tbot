@@ -284,29 +284,38 @@ def upvotes(update, context):
     update.message.reply_text("choose",reply_markup=reply_markup)
     pass
 
-def button(update,context):
+def button(update,context):        
     query = update.callback_query       
-    user_id = update.callback_query.message.chat.id
-    message_id = update.callback_query.message.message_id
-    c = ContentItemInteraction.get_interaction_by_id_and_user(message_id, user_id)        
+    user_id = update.effective_user.id    
+    user_name = update.effective_user.username
+    message_id = update.callback_query.message.message_id        
+    c = ContentItemInteraction.query.filter_by(message_id=message_id,user_id=user_id).first()
     already_voted=False
-    vote_changed=True
-    if c is None: #unanswered
-        data = json.loads(query.data)
-        contentitem_id = data['i']
-        choice = data['q']        
-        user_name = update.callback_query.message.chat.username    
-        ContentItemInteraction.add_interaction(choice=choice, contentitem_id=contentitem_id, user_id=user_id, user_name=user_name, data=json.dumps(data), message_id=message_id)                 
+    vote_changed = True
+    choice = 0
+    if c is None: #unanswered                
+        if ("{" in query.data):
+            data = json.loads(query.data)
+            contentitem_id = data['i']
+            choice = data['q']
+        else:            
+            contentitem_id = None
+            choice = query.data
+        ContentItemInteraction.add_interaction(choice=choice, contentitem_id=contentitem_id, user_id=user_id, user_name=user_name, data=query.data, message_id=message_id)                 
         pass
     else:              
         already_voted=True          
-        d = json.loads(c.data)                
-        if d['q'] == update.callback_query.data:
-            vote_changed=False
-        d['q'] = update.callback_query.data                    
-        ContentItemInteraction.delete_interaction_by_id_and_user(c.message_id, c.user_id)
-        ContentItemInteraction.add_interaction(choice=update.callback_query.data, contentitem_id=c.contentitem_id, user_id=c.user_id, user_name=c.user_name, data=json.dumps(d), message_id=c.message_id)         
-        pass #answered      
+        if ("{" in c.data):
+            data = json.loads(c.data)
+            contentitem_id = data['i']
+            choice = data['q']
+        else:            
+            contentitem_id = None
+            choice = query.data
+        vote_changed = choice != update.callback_query.data                    
+        c.delete()
+        ContentItemInteraction.add_interaction(choice=update.callback_query.data, contentitem_id=c.contentitem_id, user_id=user_id, user_name=user_name, data=choice, message_id=message_id)         
+        
     stats = ContentItemInteraction.get_interaction_stats(message_id)        
     sno = 0
     dw = 0
@@ -317,11 +326,10 @@ def button(update,context):
         if i['choice']==1:
             dw = i['count']
         if i['choice']==2:
-            u = i['count']
-    
-    seenoevil = emojize(f":see_no_evil: {'-' if sno < 0 else ''}{'+' if sno > 0 else ''}{sno}", use_aliases = True)        
+            u = i['count']    
+    seenoevil = emojize(f":see_no_evil: {'+' if sno > 0 else ''}{sno}", use_aliases = True)        
     down = emojize(f":thumbsdown: {'-' if dw > 0 else ''}{dw}", use_aliases = True)   
-    up = emojize(f":thumbsup: {'-' if u < 0 else ''}{'+' if u > 0 else ''}{u}", use_aliases = True)    
+    up = emojize(f":thumbsup: {'+' if u > 0 else ''}{u}", use_aliases = True)    
     
     k = InlineKeyboardMarkup([[\
         InlineKeyboardButton(seenoevil,callback_data=0),\
