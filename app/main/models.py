@@ -24,12 +24,14 @@ class Notification(BaseModel):
 class ContentProvider(BaseModel):
     __tablename__ = "ContentProvider"
     name = db.Column(db.String(20), nullable=False)
+
 class ContentItem(BaseModel):
     __tablename__ = "ContentItem"       
-    title = db.Column(db.Text())    
+    title = db.Column(db.Text())        
     data = db.Column(db.Text())
     content_tags = db.relationship('ContentTag', secondary=content_tags, backref='ContentItem')        
     content_hash = db.Column(db.String(128), unique=True)    
+    contentprovider_id = db.Column(db.Integer, db.ForeignKey('ContentProvider.id'), default=1)    
 
     @classmethod
     def return_random_by_tags(cls, tag_list):
