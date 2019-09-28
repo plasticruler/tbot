@@ -21,13 +21,15 @@ class Notification(BaseModel):
     category_id = db.Column(db.Integer)
     active_from = db.Column(db.DateTime, default=datetime.datetime.now)
 
+class ContentProvider(BaseModel):
+    __tablename__ = "ContentProvider"
+    name = db.Column(db.String(20), nullable=False)
 class ContentItem(BaseModel):
-    __tablename__ = "ContentItem"   
-    providerid = db.Column(db.String(6), nullable=True) 
+    __tablename__ = "ContentItem"       
     title = db.Column(db.Text())    
     data = db.Column(db.Text())
     content_tags = db.relationship('ContentTag', secondary=content_tags, backref='ContentItem')        
-    content_hash = db.Column(db.String(128), unique=True)
+    content_hash = db.Column(db.String(128), unique=True)    
 
     @classmethod
     def return_random_by_tags(cls, tag_list):
@@ -65,12 +67,12 @@ class ContentItemInteraction(BaseModel):
 
     @staticmethod
     def delete_interaction_by_id_and_user(message_id, user_id):
-        return ContentItemInteraction.query.filter(ContentItemInteraction.message_id==message_id and ContentItemInteraction.user_id==user_id).delete()        
+        ContentItemInteraction.query.filter(ContentItemInteraction.message_id==message_id and ContentItemInteraction.user_id==user_id).delete()        
     
     @staticmethod
     def get_interaction_stats(message_id):
-        interaction_stats = db.engine.execute(f"""select message_id, choice, count(choice) from ContentItemInteraction 
-                                group by message_id
+        interaction_stats = db.engine.execute(f"""select message_id, choice, count(choice) cnt from ContentItemInteraction 
+                                group by message_id, choice
                                 having message_id = {message_id}; """)
         return [{'message_id':x[0], 'choice':x[1], 'count':x[2]} for x in interaction_stats]        
     
