@@ -142,7 +142,7 @@ def send_system_broadcast(chat_id):
     if random.random() < 0.006:  # once every 158 scheduled posts / #number of users
         n = Notification.query.first()
         if n:
-            distractobot.send_message(chat_id=chat_id, text="*{}* \n{}".format(n.title, n.text),parse_mode=telegram.ParseMode.MARKDOWN, disable_web_page_preview=True )
+            distractobot.send_message(chat_id=chat_id, text="*{}* \n{}".format(n.title, n.text),parse_mode=telegram.ParseMode.MARKDOWN, , disable_notification=True, disable_web_page_preview=True )
             return True
     return False
 
@@ -216,19 +216,19 @@ def send_random_quote(chat_id=None, tag=None):
             log.debug("condition 1")
             # no body so likely something like TIL or showerthoughts
             distractobot.send_message(
-                chat_id, "{} \n{}".format(quote.title, shortlink), disable_web_page_preview=True, reply_markup = k)
+                chat_id, "{} \n{}".format(quote.title, shortlink), disable_web_page_preview=True, reply_markup = k, disable_notification=True)
             ContentItemStat.add_statistic(user, quote)
             return shortlink
         if payload.get('is_photo', False) or is_image(url):  # is photo
             log.debug("condition 2")
             distractobot.send_photo(chat_id, payload.get(
-                'url'), caption="{} - {}".format(quote.title, shortlink), reply_markup = k)
+                'url'), caption="{} - {}".format(quote.title, shortlink), reply_markup = k, disable_notification=True)
             ContentItemStat.add_statistic(user, quote)
             return shortlink
         if payload.get('is_video', False):  # is animation
             log.debug("condition 3")
             distractobot.send_animation(chat_id, payload.get(
-                'url'), caption="{} - {}".format(quote.title, shortlink), reply_markup = k)
+                'url'), caption="{} - {}".format(quote.title, shortlink), reply_markup = k, disable_notification=True)
             ContentItemStat.add_statistic(user, quote)
             return shortlink
         # no phot, no video let's see if it has a url
@@ -240,13 +240,13 @@ def send_random_quote(chat_id=None, tag=None):
                 msg = "{} \nLearn more: [{}]({}) \n\nsource: [{} / {}]({})".format(
                     quote.title, (url[:20] + '...') if len(url) > 21 else url, url, tag, shortlink, shortlink)                
                 distractobot.send_message(
-                    chat_id, msg, parse_mode=telegram.ParseMode.MARKDOWN, disable_web_page_preview=True, reply_markup = k)
+                    chat_id, msg, parse_mode=telegram.ParseMode.MARKDOWN, disable_web_page_preview=True, reply_markup = k, disable_notification=True)
                 ContentItemStat.add_statistic(user, quote)
                 return shortlink
             if is_image(url):
                 log.debug("condition 4.2")
                 distractobot.send_photo(
-                    chat_id, url, caption="{} - {}".format(quote.title, shortlink))
+                    chat_id, url, caption="{} - {}".format(quote.title, shortlink), disable_notification=True)
                 ContentItemStat.add_statistic(user, quote)
                 return shortlink
 
@@ -261,7 +261,7 @@ def send_random_quote(chat_id=None, tag=None):
             msg = "========================\n*{}* \n======================== \n{} \n[{} / {}]({})".format(
                 quote.title, "\n".join(t), tag, shortlink, payload.get('original_url', 'https://reddit.com'))
             distractobot.send_message(
-                chat_id, msg, disable_web_page_preview=True, parse_mode=telegram.ParseMode.MARKDOWN, reply_markup = k)
+                chat_id, msg, disable_web_page_preview=True, parse_mode=telegram.ParseMode.MARKDOWN, reply_markup = k, disable_notification=True)
             ContentItemStat.add_statistic(user, quote)
             return shortlink
             # build comment block
@@ -274,7 +274,7 @@ def send_random_quote(chat_id=None, tag=None):
         msg = "========================\n*{}* \n======================== \n{} \n[{} / {}]({})".format(
             title, text, tag, shortlink, shortlink)
         distractobot.send_message(
-            chat_id, msg, parse_mode=telegram.ParseMode.MARKDOWN, disable_web_page_preview=True, reply_markup = k)
+            chat_id, msg, parse_mode=telegram.ParseMode.MARKDOWN, disable_web_page_preview=True, reply_markup = k, disable_notification=True)
         ContentItemStat.add_statistic(user, quote)
         return shortlink
 
