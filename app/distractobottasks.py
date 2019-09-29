@@ -142,7 +142,7 @@ def send_system_broadcast(chat_id):
     if random.random() < 0.006:  # once every 158 scheduled posts / #number of users
         n = Notification.query.first()
         if n:
-            distractobot.send_message(chat_id=chat_id, text="*{}* \n{}".format(n.title, n.text),parse_mode=telegram.ParseMode.MARKDOWN, , disable_notification=True, disable_web_page_preview=True )
+            distractobot.send_message(chat_id=chat_id, text="*{}* \n{}".format(n.title, n.text),parse_mode=telegram.ParseMode.MARKDOWN, disable_notification=True, disable_web_page_preview=True )
             return True
     return False
 
