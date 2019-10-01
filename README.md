@@ -18,5 +18,3 @@ This is a Telegram bot that responds to commands. At the moment it has some toy 
 ## What's the plan ahead?
 - See the project board
 
-## KNOWN ISSUE
-- There are some issues with the bot api library I'm used and might have to swap it out for something else. Under conditions of high load it appears some next_step handlers get overwritten.
