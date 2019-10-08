@@ -140,7 +140,7 @@ def send_content(user_type=0):
 @celery.task
 def send_system_broadcast(chat_id):
     if random.random() < 0.006:  # once every 158 scheduled posts / #number of users
-        n = Notification.query.first()
+        n = Notification.get_latest()
         if n:
             distractobot.send_message(chat_id=chat_id, text="*{}* \n{}".format(n.title, n.text),parse_mode=telegram.ParseMode.MARKDOWN, disable_notification=True, disable_web_page_preview=True )
             return True
@@ -153,9 +153,7 @@ def is_image(url):
 def get_random_user_tag(chat_id = None):    
     if not chat_id:
         chat_id = app.config['ADMIN_CHAT_ID']
-    user = User.find_by_chatid(chat_id)   
-    print("***********************************") 
-    print(user) 
+    user = User.find_by_chatid(chat_id)       
     subs = UserSubscription.get_by_user(user.id) #can refactor to send only 1        
     return random.choice([t.keyvalue_entry.value for t in subs])
 
