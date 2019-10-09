@@ -38,15 +38,13 @@ class ContentItem(BaseModel):
 
     @classmethod
     def return_random_by_tags(cls, tag_list):
-        if tag_list is None or tag_list is []:
+        if tag_list is None or len(tag_list)  == 0:
             return return_random()
         atag = random.choice(tag_list)
         return cls.return_by_tag(atag)
     @classmethod
-    def return_by_tag(cls, tag):
-        if tag is None or tag is []:
-            raise Exception("Empty tag_list")
-        rowCount = db.session.query(ContentItem).join(ContentTag, ContentItem.content_tags).filter(ContentTag.name == atag.name).count()
+    def return_by_tag(cls, tag):                        
+        rowCount = db.session.query(ContentItem).join(ContentTag, ContentItem.content_tags).filter(ContentTag.name == tag).count()
         return ContentItem.query.join(ContentTag, ContentItem.content_tags).filter(ContentItem.is_active == True, ContentTag.name == tag).offset(int(rowCount*random.random())).first()
 
     @classmethod
