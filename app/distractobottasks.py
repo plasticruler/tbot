@@ -190,7 +190,7 @@ def send_random_quote(chat_id=None, tag=None):
 
     if quote is None:
         tag = get_random_user_tag(user.chat_id)        
-        quote = ContentItem.return_random_by_tags([tag]) #maybe the topic isn't populated so pick another
+        quote = ContentItem.return_random_by_tags([tag])  #maybe the topic isn't populated so pick another
     
     if quote is None and user is not None:
         distractobot.send_message(chat_id=chat_id, text="You have no subscriptions. Are you registered?")

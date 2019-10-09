@@ -41,7 +41,7 @@ class ContentItem(BaseModel):
         if tag_list is None or tag_list is []:
             return return_random()
         atag = random.choice(tag_list)
-        return return_by_tag(atag)
+        return cls.return_by_tag(atag)
     @classmethod
     def return_by_tag(cls, tag):
         if tag is None or tag is []:

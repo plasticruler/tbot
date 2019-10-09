@@ -156,4 +156,17 @@ def exportdata():
         d["isDeleted"] = False
         d["id"] = contentItem.id
         response = requests.post(url, json=d)
-        print(response.status_code, d["id"], d["title"])                
+        print(response.status_code, d["id"], d["title"])
+
+from app.main.models import ContentItem
+@app.cli.command()
+@with_appcontext
+def exporttagdata():
+    url = "http://localhost:5000/api/ContentItemTags"
+    for contentItem in ContentItem.query.limit(10).all():
+        for t in contentItem.content_tags:            
+            d = {}
+            d["contentItemId"] = contentItem.title
+            d["tag"] = t.name
+            response = requests.post(url, json=d)
+            print(response.status_code)                
