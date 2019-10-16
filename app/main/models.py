@@ -20,6 +20,9 @@ class Notification(BaseModel):
     text = db.Column(db.Text())
     category_id = db.Column(db.Integer)
     active_from = db.Column(db.DateTime, default=datetime.datetime.now)
+    @classmethod
+    def get_latest(cls):
+        return cls.query.filter(Notification.is_active == True).first()
 
 class ContentProvider(BaseModel):
     __tablename__ = "ContentProvider"
@@ -35,15 +38,14 @@ class ContentItem(BaseModel):
 
     @classmethod
     def return_random_by_tags(cls, tag_list):
-        if tag_list is None or tag_list is []:
+        if tag_list is None or len(tag_list)  == 0:
             return return_random()
-        rowCount = db.session.query(ContentItem).join(ContentTag, ContentItem.content_tags).filter(ContentTag.name.in_(tag_list)).count()
-        return ContentItem.query.join(ContentTag, ContentItem.content_tags).filter(ContentItem.is_active == True, ContentTag.name.in_(tag_list)).offset(int(rowCount*random.random())).first()
+        atag = random.choice(tag_list)
+        return cls.return_by_tag(atag)
     @classmethod
-    def return_by_tag(cls, tag):
-        if tag is None or tag is []:
-            raise Exception("Empty tag_list")
-        return ContentItem.query.join(ContentTag, ContentItem.content_tags).filter(ContentItem.is_active == True, ContentTag.name == tag)
+    def return_by_tag(cls, tag):                        
+        rowCount = db.session.query(ContentItem).join(ContentTag, ContentItem.content_tags).filter(ContentTag.name == tag).count()
+        return ContentItem.query.join(ContentTag, ContentItem.content_tags).filter(ContentItem.is_active == True, ContentTag.name == tag).offset(int(rowCount*random.random())).first()
 
     @classmethod
     def return_random(cls):        

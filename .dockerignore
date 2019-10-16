@@ -1,0 +1,13 @@
+.git
+#.venv
+/configs
+*.env
+/migrations
+/__pycache__
+README.md
+commands.txt
+celery_run.txt
+trie.py
+pollingbot.py
+yebogrambot.py
+INSTALL-INSTRUCTIONS.md

@@ -134,13 +134,13 @@ def send_content(user_type=0):
             send_system_message(distractobot, "A user bailed on us!",traceback.format_exc(),True, True)          
         except Exception as e:
             log.debug(traceback.format_exc())
-            send_system_message(distractobot, "Exception during send_content!",traceback.format_exc(),True, True)          
+            send_system_message(distractobot, "Exception during send_content!",traceback.format_exc(),False, False)          
 
 
 @celery.task
 def send_system_broadcast(chat_id):
     if random.random() < 0.006:  # once every 158 scheduled posts / #number of users
-        n = Notification.query.first()
+        n = Notification.get_latest()
         if n:
             distractobot.send_message(chat_id=chat_id, text="*{}* \n{}".format(n.title, n.text),parse_mode=telegram.ParseMode.MARKDOWN, disable_notification=True, disable_web_page_preview=True )
             return True
@@ -153,9 +153,7 @@ def is_image(url):
 def get_random_user_tag(chat_id = None):    
     if not chat_id:
         chat_id = app.config['ADMIN_CHAT_ID']
-    user = User.find_by_chatid(chat_id)   
-    print("***********************************") 
-    print(user) 
+    user = User.find_by_chatid(chat_id)       
     subs = UserSubscription.get_by_user(user.id) #can refactor to send only 1        
     return random.choice([t.keyvalue_entry.value for t in subs])
 
@@ -192,15 +190,14 @@ def send_random_quote(chat_id=None, tag=None):
 
     if quote is None:
         tag = get_random_user_tag(user.chat_id)        
-        quote = ContentItem.return_random_by_tags([tag]) #maybe the topic isn't populated so pick another
+        quote = ContentItem.return_random_by_tags([tag])  #maybe the topic isn't populated so pick another
     
     if quote is None and user is not None:
         distractobot.send_message(chat_id=chat_id, text="You have no subscriptions. Are you registered?")
         send_system_message(distractobot, "User has no subscriptions. User will be disabled. {}".format(user.id))
         user.subscriptions_active = False
         user.save_to_db()
-        return "No subscriptions found for user."
-    
+        return "No subscriptions found for user."    
     
     payload = None
     payload = json.loads(quote.data)
@@ -212,54 +209,47 @@ def send_random_quote(chat_id=None, tag=None):
         send_random_quote(chat_id, tag)
         return shortlink
     if len(payload.get('text', "").strip()) == 0:  # handle title only
-        if not payload.get('is_photo', True) and not payload.get('is_video', True):
-            log.debug("condition 1")
+        if not payload.get('is_photo', True) and not payload.get('is_video', True):            
             # no body so likely something like TIL or showerthoughts
             distractobot.send_message(
-                chat_id, "{} \n{}".format(quote.title, shortlink), disable_web_page_preview=True, reply_markup = k, disable_notification=True)
+                chat_id, "{} \n{} ({})".format(quote.title, shortlink, tag), disable_web_page_preview=True, reply_markup = k, disable_notification=True)
             ContentItemStat.add_statistic(user, quote)
             return shortlink
-        if payload.get('is_photo', False) or is_image(url):  # is photo
-            log.debug("condition 2")
+        if payload.get('is_photo', False) or is_image(url):  # is photo            
             distractobot.send_photo(chat_id, payload.get(
-                'url'), caption="{} - {}".format(quote.title, shortlink), reply_markup = k, disable_notification=True)
+                'url'), caption="{} - {} ({})".format(quote.title, shortlink, tag), reply_markup = k, disable_notification=True)
             ContentItemStat.add_statistic(user, quote)
             return shortlink
-        if payload.get('is_video', False):  # is animation
-            log.debug("condition 3")
+        if payload.get('is_video', False):  # is animation            
             distractobot.send_animation(chat_id, payload.get(
-                'url'), caption="{} - {}".format(quote.title, shortlink), reply_markup = k, disable_notification=True)
+                'url'), caption="{} - {} ({})".format(quote.title, shortlink, tag), reply_markup = k, disable_notification=True)
             ContentItemStat.add_statistic(user, quote)
             return shortlink
         # no phot, no video let's see if it has a url
-        if payload.get('url', False) and 'reddit.com/r/' not in payload.get('url'):
-            log.debug("condition 4")
+        if payload.get('url', False) and 'reddit.com/r/' not in payload.get('url'):            
             url = payload.get('url')
-            if not url.startswith('https://v.redd.it'):
-                log.debug("condition 4.1")
-                msg = "{} \nLearn more: [{}]({}) \n\nsource: [{} / {}]({})".format(
-                    quote.title, (url[:20] + '...') if len(url) > 21 else url, url, tag, shortlink, shortlink)                
+            if not url.startswith('https://v.redd.it'):                
+                msg = "{} \nLearn more: [{}]({}) \n\nsource: [{}]({})".format(
+                    quote.title, (url[:20] + '...') if len(url) > 21 else url, url,tag, shortlink)                
                 distractobot.send_message(
                     chat_id, msg, parse_mode=telegram.ParseMode.MARKDOWN, disable_web_page_preview=True, reply_markup = k, disable_notification=True)
                 ContentItemStat.add_statistic(user, quote)
                 return shortlink
-            if is_image(url):
-                log.debug("condition 4.2")
+            if is_image(url):                
                 distractobot.send_photo(
-                    chat_id, url, caption="{} - {}".format(quote.title, shortlink), disable_notification=True)
+                    chat_id, url, caption="{} - {} ({})".format(quote.title, shortlink, tag), disable_notification=True)
                 ContentItemStat.add_statistic(user, quote)
                 return shortlink
 
         # we have no body and no pictures/videos , something like AskReddit so the comments are important
-        if payload.get('comments', False):
-            log.debug("condition 5")            
+        if payload.get('comments', False):              
             comments = payload.get('comments')
             t = []
             for value in comments:
                 t.append("\n" + emoji.emojize(":bust_in_silhouette:") +
                          " {} - {}".format(value, comments[value]))
-            msg = "========================\n*{}* \n======================== \n{} \n[{} / {}]({})".format(
-                quote.title, "\n".join(t), tag, shortlink, payload.get('original_url', 'https://reddit.com'))
+            msg = "========================\n*{}* \n======================== \n{} \n[{}]({})".format(
+                quote.title, "\n".join(t), tag, payload.get('original_url', 'https://reddit.com'), tag)
             distractobot.send_message(
                 chat_id, msg, disable_web_page_preview=True, parse_mode=telegram.ParseMode.MARKDOWN, reply_markup = k, disable_notification=True)
             ContentItemStat.add_statistic(user, quote)
@@ -271,8 +261,8 @@ def send_random_quote(chat_id=None, tag=None):
         # we have title + body saved
         title = quote.title
         text = payload.get('text', None)
-        msg = "========================\n*{}* \n======================== \n{} \n[{} / {}]({})".format(
-            title, text, tag, shortlink, shortlink)
+        msg = "========================\n*{}* \n======================== \n{} \n[{}]({})".format(
+            title, text, tag, shortlink)
         distractobot.send_message(
             chat_id, msg, parse_mode=telegram.ParseMode.MARKDOWN, disable_web_page_preview=True, reply_markup = k, disable_notification=True)
         ContentItemStat.add_statistic(user, quote)

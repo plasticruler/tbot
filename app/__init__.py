@@ -26,6 +26,8 @@ import json
 import telebot
 import telegram
 import redis
+import requests
+
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Bot
 from flask_session import Session
 #from flask_caching import Cache
@@ -139,3 +141,32 @@ def importusers():
         u.user_id = user.get('user_id')
         u.keyvalue_entry_id = user.get('keyvalue_entry_id')        
         u.save_to_db()
+
+from app.main.models import ContentItem
+@app.cli.command()
+@with_appcontext
+def exportdata():
+    url = "http://localhost:5000/api/ContentItems"
+    for contentItem in ContentItem.query.all():
+        d = {}
+        d["title"] = contentItem.title
+        d["data"] = contentItem.data
+        d["contentProviderID"] = contentItem.contentprovider_id
+        d["contentHash"] = contentItem.content_hash
+        d["isDeleted"] = False
+        d["id"] = contentItem.id
+        response = requests.post(url, json=d)
+        print(response.status_code, d["id"], d["title"])
+
+from app.main.models import ContentItem
+@app.cli.command()
+@with_appcontext
+def exporttagdata():
+    url = "http://localhost:5000/api/ContentItemTags"
+    for contentItem in ContentItem.query.limit(10).all():
+        for t in contentItem.content_tags:            
+            d = {}
+            d["contentItemId"] = contentItem.title
+            d["tag"] = t.name
+            response = requests.post(url, json=d)
+            print(response.status_code)                
