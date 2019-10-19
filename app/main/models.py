@@ -108,8 +108,11 @@ class ContentItemStat(BaseModel):
         group by contenttag_id order by cnt desc, ContentTag.name limit """ + "{};".format(limitby))
         return {x[0]:{'count':x[1], 'last_updated':timeago.format(x[2], now)} for x in list(reddit_content_count)}     
     
-    @classmethod
-    def add_statistic(cls, user, quote):
+    @staticmethod
+    def does_statistic_exist(user, quote):        
+        return ContentItemStat.query.filter(ContentItemStat.user_id == user_id, ContentItemStat.contentitem_id == quote.id).first() is not None
+    @staticmethod
+    def add_statistic(user, quote):
         cs = ContentItemStat()
         cs.user_id = user.id
         cs.contentitem_id = quote.id
