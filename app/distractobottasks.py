@@ -186,7 +186,8 @@ def send_random_quote(chat_id=None, tag=None):
         return "system message broadcast!"    
     # get user subscriptions
     
-    quote = ContentItem.return_random_by_tags([tag])
+    if tag is not None:
+        quote = ContentItem.return_random_by_tags([tag])
 
     if quote is None:
         tag = get_random_user_tag(user.chat_id)        
@@ -198,7 +199,9 @@ def send_random_quote(chat_id=None, tag=None):
         user.subscriptions_active = False
         user.save_to_db()
         return "No subscriptions found for user."    
-    
+    if ContentItemStat.does_statistic_exist(user, quote):
+        send_random_quote(chat_id, tag)
+
     payload = None
     payload = json.loads(quote.data)
     shortlink = payload.get('shortlink')
@@ -270,3 +273,4 @@ def send_random_quote(chat_id=None, tag=None):
 
 ###############################################################################
 
+    
