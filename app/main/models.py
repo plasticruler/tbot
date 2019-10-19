@@ -110,7 +110,7 @@ class ContentItemStat(BaseModel):
     
     @staticmethod
     def does_statistic_exist(user, quote):        
-        return ContentItemStat.query.filter(ContentItemStat.user_id == user_id, ContentItemStat.contentitem_id == quote.id).first() is not None
+        return ContentItemStat.query.filter(ContentItemStat.user_id == user.id, ContentItemStat.contentitem_id == quote.id).first() is not None
     @staticmethod
     def add_statistic(user, quote):
         cs = ContentItemStat()
