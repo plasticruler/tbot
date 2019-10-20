@@ -185,6 +185,7 @@ def send_random_quote(chat_id=None, tag=None):
     if send_system_broadcast(chat_id):
         return "system message broadcast!"    
     # get user subscriptions
+    quote = None
     
     if tag is not None:
         quote = ContentItem.return_random_by_tags([tag])
