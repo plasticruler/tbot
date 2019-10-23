@@ -39,6 +39,34 @@ def mass_add():
         except Exception as e:
             log.debug(traceback.format_exc())    
 
+def get_url_for_XKCD(comic_number):
+    return f"https://xkcd.com/{comic_number}/info.0.json"
+
+@celery.task
+def update_XKCD(history_count=15):
+    for i in range(1, history_count + 1):
+        props = {}
+        ci = ContentItem()
+        ci.contentprovider_id = 2 #yea magic number i know
+        url = get_url_for_XKCD(i)                
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            payload = response.json()
+            tags_to_add = ["xkcd.com"]            
+            ci.title = payload['safe_title']
+            ci.content_hash = get_md5(payload['num'])            
+            ci.content_tags = [ContentTag.find_or_create_tag(tg) for tg in tags_to_add]
+            ci.data = json.dumps(payload)
+            ci.save_to_db()            
+        except HTTPError as http_err:
+            print(f'HTTP error occurred: {http_err}')  # Python 3.6
+        except Exception as err:
+            print(f'Other error occurred: {err}')  # Python 3.6
+
+        
+        
+            
 @celery.task
 def update_reddit(subname, limit=1000):
     props = {}

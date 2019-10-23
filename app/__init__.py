@@ -169,4 +169,20 @@ def exporttagdata():
             d["contentItemId"] = contentItem.title
             d["tag"] = t.name
             response = requests.post(url, json=d)
-            print(response.status_code)                
+            print(response.status_code)
+            
+# cli click commands
+@app.cli.command()
+@click.argument("chatid")
+@click.argument("message")
+@with_appcontext
+def sendmessage_db(chatid, message):
+    print(chatid, message)
+    distractobot.send_message(chatid, message)
+
+from app.distractobottasks import update_reddit
+@app.cli.command()
+@click.argument("tag")
+@with_appcontext
+def refresh_reddit(tag):        
+    update_reddit(tag, limit=100)

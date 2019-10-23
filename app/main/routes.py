@@ -45,10 +45,10 @@ def resend_activation_email():
     return make_response('Ok', 200)
 
 
-@main.route('/refreshcontent/<r>', methods=['GET'])
+@main.route('/refreshcontent/<content_provider>/<r>', methods=['GET'])
 @roles_required('admin')
 @login_required
-def refresh_content(r='d'):
+def refresh_content(content_provider, r='d'):
     if current_user.is_authenticated and current_user.is_active:
         update_reddit.delay(r,limit=500)
         return make_response('Ok',200)
