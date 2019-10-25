@@ -15,7 +15,7 @@ from app import app, bot, make_celery, log, redis_instance
 from app.main.models import ContentStats, Bot_MessageInbound, UserSubscription, Tag, Bot_Quote, EquityPriceSource, EquityInstrument, EquityPrice
 from app.auth.models import User
 import telebot
-from app.rbot import reddit
+from app.redditwrapper import reddit
 import uuid
 import time
 import datetime
