@@ -2,7 +2,7 @@
 from app.main.models import ContentItem, ContentTag
 from app import db, log
 
-class ContentCreatoryFactor:            
+class ContentCreatoryService:            
     pass
 
 class BaseContentItemCreator:
@@ -26,6 +26,7 @@ class BaseContentItemCreator:
     def SaveItem(self):
         self.contentItem.save_to_db()
         self.contentItem = ContentItem()
+
     def ValidateArgs(self, *args):
         for k in args:
             self.GetValueFromConfig(k, raiseException=True)

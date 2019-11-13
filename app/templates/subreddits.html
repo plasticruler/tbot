@@ -22,7 +22,7 @@
             <td>{{r.key.name}}</td>
             <td>&nbsp;{{rc[r.value].count}}</td>
             <td>&nbsp;{{rc[r.value].last_updated}}</td>
-            <td><button id="btn_refresh_content" name="btn_refresh_content" onclick="updateSubRedditContent('{{r.value}}')" type="button" class="btn-small"><i class="material-icons left">file_download</i>Refresh</button></td>
+            <td><button id="btn_refresh_content" name="btn_refresh_content" onclick="updateSubRedditContent('1', '{{r.value}}')" type="button" class="btn-small"><i class="material-icons left">file_download</i>Refresh</button></td>
         </tr>    
         {%else%}            
         <tr class="pink lighten-4">
@@ -30,7 +30,7 @@
             <td>{{r.key.name}}</td>
             <td>&nbsp;0</td>
             <td>&nbsp;never</td>
-            <td><button id="btn_refresh_content" name="btn_refresh_content" onclick="updateSubRedditContent('{{r.value}}')" type="button" class="btn-small"><i class="material-icons left">file_download</i>Refresh</button></td>
+            <td><button id="btn_refresh_content" name="btn_refresh_content" onclick="updateSubRedditContent('1','{{r.value}}')" type="button" class="btn-small"><i class="material-icons left">file_download</i>Refresh</button></td>
         </tr>    
         {%endif%}
         

@@ -3,6 +3,11 @@ from app import db, log
 from app.main.models import ContentItem, ContentTag
 from app.redditwrapper import reddit
 
+
+
+class Manager:
+    pass
+
 class RedditContentItemCreator(BaseContentItemCreator):
     def __init__(self):
         super().__init__("Reddit", 1)

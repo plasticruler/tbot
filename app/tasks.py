@@ -42,9 +42,6 @@ HOST_LOCATION = app.config['HOST_LOCATION']
 ADMIN_CHAT_ID = app.config['ADMIN_CHAT_ID']
 MAIL_SENDER = app.config['MAIL_DEFAULT_SENDER']
 
-
-
-
 class IllegalArgumentError(ValueError):
     pass
 

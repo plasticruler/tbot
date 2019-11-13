@@ -1,27 +1,22 @@
 from __future__ import unicode_literals
+
 import json
-import os
-import requests
-import emoji
-import datetime
-from app import app, make_celery, log, mail
-from app.main.models import ContentStats, UserSubscription, ContentItem, ContentTag, KeyValueEntry, Notification, ContentItemStat
-from app.auth.models import User
-import time
 import random
-import datetime
-import re
 import traceback
-from app.redditwrapper import reddit
-from app.utils import get_md5
-from app import log, db, distractobot
+
+import emoji
+import requests
 import telegram
-from MySQLdb._exceptions import IntegrityError
-from sqlalchemy.exc import InvalidRequestError
-from app.commontasks import send_system_message
-from uuid import uuid4 
 from emoji import emojize
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+from app import app, make_celery
+from app import log, distractobot
+from app.auth.models import User
+from app.commontasks import send_system_message
+from app.main.models import UserSubscription, ContentItem, ContentTag, Notification, ContentItemStat
+from app.redditwrapper import reddit
+from app.utils import get_md5
 
 celery = make_celery(app)
 
@@ -153,7 +148,7 @@ def send_random_quote(chat_id=None, tag=None):
         user.save_to_db()
         return "No subscriptions found for user."    
     if ContentItemStat.does_statistic_exist(user, quote):
-        send_random_quote(chat_id, tag)
+        return send_random_quote(chat_id, tag)
 
     payload = None
     payload = json.loads(quote.data)

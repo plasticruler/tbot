@@ -1,5 +1,0 @@
-
-
-
-celery -A app.tasks:celery worker --loglevel=info
-celery beat -A app.tasks:celery --schedule=/tmp/celerybeat-schedule  --loglevel=info --pidfile=/tmp/celerybeat.pid

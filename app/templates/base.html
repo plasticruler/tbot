@@ -164,7 +164,7 @@
         
         {%if current_user.has_role('admin')%}
         function updateSubRedditContent(r){
-            var u = '{{url_for("main.refresh_content",r=dummy)}}';
+            var u = '{{url_for("main.refresh_content",content_provider=1, r=dummy)}}';
             u = u.substring(0,u.lastIndexOf('/')+1)+r;
             axios.get(u,{
             params:{
