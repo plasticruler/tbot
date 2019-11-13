@@ -158,6 +158,16 @@ def exportdata():
         response = requests.post(url, json=d)
         print(response.status_code, d["id"], d["title"])
 
+
+# cli click commands
+@app.cli.command()
+@click.argument("chatid")
+@click.argument("message")
+@with_appcontext
+def sendmessage(chatid, message):
+    print(chatid, message)
+    distractobot.send_message(chatid, message)
+
 from app.main.models import ContentItem
 @app.cli.command()
 @with_appcontext

@@ -4,6 +4,7 @@ from telegram.ext import ConversationHandler, CallbackQueryHandler, Filters, Inl
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, ChatAction
 from telegram import  InlineQueryResultArticle, ParseMode, InputTextMessageContent
+import argparse
 import telegram
 import requests
 import re
@@ -448,5 +449,18 @@ def main():
     updater.idle()
 
 
+parser = argparse.ArgumentParser(description="@DistractoBot bot")
+rungroup = parser.add_argument_group('rungroup','run the bot')
+msggroup = parser.add_argument_group('msggroup','send a message')
+
+rungroup.add_argument('--run', action='store_true', help='run the bot')
+msggroup.add_argument('--chatid',type=int, help='this is the chatid')
+msggroup.add_argument('--message',type=str,help='this is the message')
+args = parser.parse_args()
 if __name__ == '__main__':
-    main()
+    if args.run:
+        main()
+    elif args.chatid and args.message:
+        distractobot.send_message(chat_id=args.chatid, text=args.message)
+    else:
+        parser.print_help()
