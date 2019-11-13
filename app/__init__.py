@@ -1,37 +1,20 @@
-import click
-
-from flask import Flask, request 
-
-from flask_sqlalchemy import SQLAlchemy
-
-from flask_migrate import Migrate
-from flask.cli import with_appcontext
-from flask_login import LoginManager, user_logged_in
-
-
-from celery import Celery
-
-from flask_admin import Admin
-from flask_admin.contrib.sqla import ModelView
-from flask_mail import Mail
-
 import logging
-import os
-import sys
-import datetime
-import matplotlib.pyplot as plt
 
-from app.config import Config
-import json
-import telebot
-import telegram
+import click
 import redis
 import requests
-
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Bot
+import telebot
+import telegram
+from celery import Celery
+from flask import Flask
+from flask.cli import with_appcontext
+from flask_login import LoginManager
+from flask_mail import Mail
+from flask_migrate import Migrate
 from flask_session import Session
-#from flask_caching import Cache
+from flask_sqlalchemy import SQLAlchemy
 
+from app.config import Config
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -96,7 +79,8 @@ login_manager.init_app(app)
 from app.auth.models import User, Role
 
 #set flask-security
-from flask_security import Security, SQLAlchemyUserDatastore, login_required
+from flask_security import Security, SQLAlchemyUserDatastore
+
 user_datastore = SQLAlchemyUserDatastore(db, User, Role)
 app.security = Security(app, user_datastore)
 
@@ -176,7 +160,7 @@ def exporttagdata():
 @click.argument("chatid")
 @click.argument("message")
 @with_appcontext
-def sendmessage_db(chatid, message):
+def sendmessage(chatid, message):
     print(chatid, message)
     distractobot.send_message(chatid, message)
 
