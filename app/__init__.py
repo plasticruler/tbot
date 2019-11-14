@@ -163,9 +163,6 @@ def exporttagdata():
             d["contentItemId"] = contentItem.title
             d["tag"] = t.name
             response = requests.post(url, json=d)
-<<<<<<< HEAD
-            print(response.status_code)                
-=======
             print(response.status_code)
             
 # cli click commands
@@ -183,4 +180,3 @@ from app.distractobottasks import update_reddit
 @with_appcontext
 def refresh_reddit(tag):        
     update_reddit(tag, limit=100)
->>>>>>> 215771e1f6c6e29ff4485d6e827c69e7e4a266f2
