@@ -365,7 +365,9 @@ def vote(update, context):
 @send_typing_action
 def send_admin(update, context):
     chat_id = get_chat_id(update)
-    send_system_message(distractobot, " ".join(context.args) + " (from chatid: {})".format(chat_id), True)    
+    send_system_message(distractobot, " ".join(context.args) + " (from chatid: {})".format(chat_id), True)
+    context.bot.send_message(chat_id=chat_id, text="Ok, you can also send a message to human at @windowlene".format(context.args))
+    
 
 def send_system_message(bot = None, text = None, to_bot=True, also_email=False):
     if bot and to_bot:

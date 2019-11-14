@@ -1,27 +1,22 @@
 from __future__ import unicode_literals
+
 import json
-import os
-import requests
-import emoji
-import datetime
-from app import app, make_celery, log, mail
-from app.main.models import ContentStats, UserSubscription, ContentItem, ContentTag, KeyValueEntry, Notification, ContentItemStat
-from app.auth.models import User
-import time
 import random
-import datetime
-import re
 import traceback
-from app.rbot import reddit
-from app.utils import get_md5
-from app import log, db, distractobot
+
+import emoji
+import requests
 import telegram
-from MySQLdb._exceptions import IntegrityError
-from sqlalchemy.exc import InvalidRequestError
-from app.commontasks import send_system_message
-from uuid import uuid4 
 from emoji import emojize
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+from app import app, make_celery
+from app import log, distractobot
+from app.auth.models import User
+from app.commontasks import send_system_message
+from app.main.models import UserSubscription, ContentItem, ContentTag, Notification, ContentItemStat
+from app.redditwrapper import reddit
+from app.utils import get_md5
 
 celery = make_celery(app)
 
@@ -39,80 +34,36 @@ def mass_add():
         except Exception as e:
             log.debug(traceback.format_exc())    
 
+def get_url_for_XKCD(comic_number):
+    return f"https://xkcd.com/{comic_number}/info.0.json"
+
+@celery.task
+def update_XKCD(history_count=15):
+    for i in range(1, history_count + 1):
+        props = {}
+        ci = ContentItem()
+        ci.contentprovider_id = 2 #yea magic number i know
+        url = get_url_for_XKCD(i)                
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            payload = response.json()
+            tags_to_add = ["xkcd.com"]            
+            ci.title = payload['safe_title']
+            ci.content_hash = get_md5(payload['num'])            
+            ci.content_tags = [ContentTag.find_or_create_tag(tg) for tg in tags_to_add]
+            ci.data = json.dumps(payload)
+            ci.save_to_db()            
+        except HTTPError as http_err:
+            print(f'HTTP error occurred: {http_err}')  # Python 3.6
+        except Exception as err:
+            print(f'Other error occurred: {err}')  # Python 3.6           
+ 
+from app.providers.reddit import RedditContentItemCreator
 @celery.task
 def update_reddit(subname, limit=1000):
-    props = {}
-    srs = reddit.subreddit(subname).hot(limit=limit)
-    j = 0
-    for item in srs:
-        j = j+1
-        if item.stickied or item.pinned:
-            continue
-        ci = ContentItem()
-        tags_to_add = [subname]
-        props['id'] = item.id
-        url = getattr(item, 'url', None)
-        props['original_url'] = url
-        ci.title = item.title
-        props['text'] = getattr(item, 'selftext', None)
-        if url or not 'https://www.reddit.com/r/' in url or not 'wikipedia' in url:
-            if getattr(item, 'media', False):
-                if 'reddit_video' in item.media:
-                    url = item.media['reddit_video']['fallback_url']
-                    props["is_video"] = True  # can send as gif
-                if 'oembed' in item.media:
-                    props['oembed'] = item.media['oembed']
-                    if 'thumbnail_url' in item.media['oembed']:
-                        url = item.media['oembed']['thumbnail_url']
-                    if 'type' in item.media['oembed'] and item.media['oembed']['type'] == 'youtube.com':
-                        ci.title = "{} - {}".format(
-                            ci.title, item.media['oembed']['title'])
-            # if photo only then s.preview[enabled] = True
-            if hasattr(item, 'preview'):
-                if 'reddit_video_preview' in item.preview:
-                    if 'fallback_url' in item.preview['reddit_video_preview']:
-                        url = item.preview['reddit_video_preview']['fallback_url']
-                        props["is_video"] = True  # can send as gif
-                if 'reddit_video' in item.preview:
-                    if 'fallback_url' in item.preview['reddit_video']:
-                        url = item.preview['reddit_video']['fallback_url']
-                        props["is_video"] = True  # can send as gif
-
-        props['url'] = url
-        if is_image(url):
-            props['is_photo'] = True
-        if item.over_18:
-            tags_to_add.append('_over_18')
-            props["over_18"] = True
-        if item.gilded:
-            tags_to_add.append('_gilded')
-            props["gilded"] = True
-        props['total_awards_received'] = item.total_awards_received
-        # set tags
-        ci.content_tags = [ContentTag.find_or_create_tag(tg) for tg in tags_to_add]
-        props['id'] = item.id
-        props['shortlink'] = item.shortlink
-        props['ups'] = item.ups
-        props['downs'] = item.downs
-        # we'll also save the top 5 top-level comments
-        comments = {}
-        ci.comment_sort = 'best'
-        for i in range(5):
-            if len(item.comments) > i:
-                comments[i] = item.comments[i].body
-        props['comments'] = comments
-        ci.content_hash = get_md5(item.shortlink)
-        ci.data = json.dumps(props)
-        try:
-            ci.save_to_db()
-            log.info(
-                '{} Processed item with reddit id {} - {} - {}'.format(j, item.id, item.title, item.shortlink))
-        except InvalidRequestError as e:
-            log.error(e)
-            db.session.session.rollback()
-        except IntegrityError as e:
-            db.session.rollback()
-            pass
+    rcic = RedditContentItemCreator()    
+    rcic.GetContent(subname=subname, limit=limit)    
 
 @celery.task
 def send_channel_content():
@@ -145,10 +96,6 @@ def send_system_broadcast(chat_id):
             distractobot.send_message(chat_id=chat_id, text="*{}* \n{}".format(n.title, n.text),parse_mode=telegram.ParseMode.MARKDOWN, disable_notification=True, disable_web_page_preview=True )
             return True
     return False
-
-
-def is_image(url):
-    return url.endswith('.jpg') or url.endswith('.jpeg') or url.endswith('.png')
 
 def get_random_user_tag(chat_id = None):    
     if not chat_id:
@@ -201,7 +148,7 @@ def send_random_quote(chat_id=None, tag=None):
         user.save_to_db()
         return "No subscriptions found for user."    
     if ContentItemStat.does_statistic_exist(user, quote):
-        send_random_quote(chat_id, tag)
+        return send_random_quote(chat_id, tag)
 
     payload = None
     payload = json.loads(quote.data)

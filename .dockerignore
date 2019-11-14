@@ -2,6 +2,7 @@
 #.venv
 /configs
 *.env
+*.sh
 /migrations
 /__pycache__
 README.md
